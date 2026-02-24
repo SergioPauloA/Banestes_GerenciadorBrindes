@@ -6,10 +6,12 @@
 const PLANILHA_ID = '1mM8zs3zUUd2V2HCItqjWCf2W2SN4vohza6moytrPdPI';
 
 function doGet(e) {
-  const ss = SpreadsheetApp.openById(PLANILHA_ID);
-  criarAbasBanco(ss);
+  // const ss = SpreadsheetApp.openById(PLANILHA_ID);
+  // criarAbasBanco(ss);
   return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('Bem-vindo ao Gerenciador de Ativos - Núcleo Asset');
+    .setTitle('Bem-vindo ao Gerenciador de Ativos - Núcleo Asset')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function criarAbasBanco(ss) {
@@ -153,13 +155,13 @@ function getAppData() {
       usuarioEmail = "Usuário não detectado";
     }
 
-    Logger.log("FINAL getAppData - retorno pronto");
+    Logger.log("BACKEND OK - Dados recuperados.");
     return {
       brindes,
       dashboard,
       movimentos,
       logs: logList,
-      usuario: usuarioEmail, // ou "Usuário não detectado" em fallback seguro
+      usuario: usuarioEmail,
       kpis: { estoqueBaixo, pedidosPendentes, divergencias },
       timestamp: Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss"),
       debug: {
@@ -173,17 +175,18 @@ function getAppData() {
   } catch (err) {
     Logger.log("ERRO FATAL EM getAppData: " + err.toString());
     return {
-      brindes: brindes || [],
-      dashboard: dashboard || [],
-      movimentos: movimentos || [],
-      logs: logList || [],
-      usuario: usuarioEmail || "Visitante",
-      kpis: { estoqueBaixo: estoqueBaixo || 0, pedidosPendentes: pedidosPendentes || 0, divergencias: divergencias || 0 },
-      timestamp: Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss"),
-      debug: { brindesLen: brindes.length, dashboardLen: dashboard.length, movimentosLen: movimentos.length, logsLen: logList.length, usuarioEmail: usuarioEmail }
+      brindes: [],
+      dashboard: [],
+      movimentos: [],
+      logs: [],
+      usuario: "Erro",
+      kpis: { estoqueBaixo: 0, pedidosPendentes: 0, divergencias: 0 },
+      timestamp: "",
+      debug: { error: err.toString() }
     };
   }
 }
+
 
 /** -------- ENCOMENDA / TRANSFERÊNCIA / REGULARIZAÇÃO ----------- */
 function registrarEncomenda(dados) {
@@ -550,4 +553,65 @@ function getCadastroList() {
   } catch (e) {
     return { success: false, error: e.toString(), list: [] };
   }
+}
+
+function debugReturnAppData() {
+  let resultado = {};
+  try {
+    // Rode aqui a MESMA lógica de getAppData:
+    const ss = SpreadsheetApp.openById(PLANILHA_ID);
+    let cadastro = ss.getSheetByName('DB_Cadastro');
+    let brindes = [];
+    if (cadastro && cadastro.getLastRow() > 1) {
+      brindes = cadastro.getRange(2,1,cadastro.getLastRow()-1,5).getValues()
+        .map(row => ({ id: row[0], nome: row[1] }));
+    }
+    let usuarioEmail = "";
+    try {
+      usuarioEmail = Session.getActiveUser().getEmail();
+      if (!usuarioEmail) throw "Usuário não detectado";
+    } catch (e) {
+      usuarioEmail = "Usuário não detectado";
+    }
+
+    resultado = {
+      brindes: brindes,
+      usuario: usuarioEmail,
+      kpis: { estoqueBaixo: 1, pedidosPendentes: 2, divergencias: 3 },
+      debug: {
+        brindesLen: brindes.length,
+        usuarioEmail: usuarioEmail
+      }
+    };
+  } catch(e) {
+    resultado = { brindes: [], usuario:"Erro", kpis:{}, debug:{error:e.toString()} };
+  }
+  Logger.log("==== RETORNO debugReturnAppData ====");
+  Logger.log(JSON.stringify(resultado, null, 2));
+  return resultado;
+}
+
+function debugReturnCompleto() {
+  try {
+    let resp = getAppData();
+    Logger.log("==== RETORNO DE getAppData ====");
+    Logger.log(JSON.stringify(resp, null, 2));
+    return resp;
+  } catch(e) {
+    Logger.log("ERRO: " + e.toString());
+    return {debug:{error:e.toString()}};
+  }
+}
+
+function debugEstrutura() {
+  let resp = getAppData();
+  Logger.log("Tipo brindes: " + typeof resp.brindes + " / Array? " + Array.isArray(resp.brindes));
+  Logger.log("Tipo usuario: " + typeof resp.usuario);
+  Logger.log("Tipo kpis: " + typeof resp.kpis);
+  Logger.log("Tipo dashboard: " + typeof resp.dashboard + " / Array? " + Array.isArray(resp.dashboard));
+  Logger.log("Tipo movimentos: " + typeof resp.movimentos + " / Array? " + Array.isArray(resp.movimentos));
+  Logger.log("Tipo logs: " + typeof resp.logs + " / Array? " + Array.isArray(resp.logs));
+  Logger.log("Tipo debug: " + typeof resp.debug);
+  Logger.log("==== DADOS: " + JSON.stringify(resp));
+  return resp;
 }
