@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Bem-vindo ao Gerenciador de Ativos - Núcleo Asset</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --primary: #003366;
+      --primary-dark: #00284d;
+      --white: #ffffff;
+      --gray-light: #f4f7f9;
+      --gray-medium: #e4e8ee;
+      --gray-dark: #7a8fa6;
+      --shadow: 0 2px 8px rgba(0,0,0,0.06);
+      --border-radius: 8px;
+      --card-border: 1px solid #e0e0e0;
+      --font: 'Segoe UI', 'Roboto', Arial, Helvetica, sans-serif;
+      --font-size-base: 14px;
+      --font-size-table: 12px;
+      --success: #36b37e;
+      --danger: #fa4444;
+      --warning: #ffd166;
+      --info: #2684ff;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { font-size: var(--font-size-base);}
+    body {
+      min-height: 100vh;
+      margin: 0;
+      font-family: var(--font);
+      background: var(--gray-light);
+      color: var(--primary-dark);
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      grid-template-rows: 58px 1fr;
+      grid-template-areas:
+        "sidebar header"
+        "sidebar main";
+      zoom: 0.95;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .sidebar {
+      grid-area: sidebar;
+      width: 220px;
+      background: var(--primary);
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      box-shadow: var(--shadow);
+      position: relative;
+      z-index: 3;
+    }
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      padding: 23px 11px 15px 11px;
+      font-size: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.09);
+      font-weight: 700;
+      letter-spacing: 1px;
+      min-height: 58px;
+    }
+    .logo-placeholder {
+      width: 36px; height: 36px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--white);
+      color: var(--primary);
+      font-size: 20px;
+      font-weight: bold;
+      border-radius: 10px;
+      margin-right: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      letter-spacing: 2px;
+    }
+    .sidebar-nav { margin-top: 14px; flex: 1; display: flex; flex-direction: column; gap: 4px; padding-bottom: 10px;}
+    .nav-btn {
+      background: none;
+      border: none;
+      color: var(--white);
+      padding: 8px 11px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 7px 23px 23px 7px;
+      transition: background 0.17s, color 0.15s;
+      cursor: pointer;
+      outline: none;
+      margin-right: 10px;
+      margin-bottom: 1px;
+      min-height: 36px;
+      text-align: left;
+    }
+    .nav-btn.active, .nav-btn:hover { background: var(--white); color: var(--primary);}
+    .header {
+      grid-area: header;
+      background: var(--white);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      border-bottom-left-radius: var(--border-radius);
+      border-bottom-right-radius: var(--border-radius);
+      font-size: 15px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .header-title {
+      font-size: 1.12em;
+      font-weight: 700;
+      color: var(--primary-dark);
+      letter-spacing: 0.7px;
+      display: flex;
+      align-items: center;
+    }
+    .header-user {
+      font-size: 14px;
+      color: var(--gray-dark);
+      font-weight: 600;
+      border-left: 1px solid var(--gray-medium);
+      padding-left: 12px;
+      margin-left: 6px;
+    }
+    .main-area {
+      grid-area: main;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+      background: var(--gray-light);
+    }
+
+    .content-section {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      overflow-y: auto;
+      padding: 24px 19px 18px 19px;
+      background: var(--gray-light);
+      display: none;
+      animation: fadeIn 0.38s;
+    }
+    .content-section.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      0% { opacity: 0.5; transform: translateY(12px);}
+      100% { opacity: 1; transform: translateY(0);}
+    }
+
+    .dashboard-kpis {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .kpi-card {
+      flex: 1;
+      min-width: 120px;
+      background: var(--white);
+      border: var(--card-border);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 12px 10px 10px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      font-size: 13px;
+    }
+    .kpi-title {
+      color: var(--gray-dark);
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .kpi-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin-bottom: 0.3em;
+    }
+    .kpi-badge {
+      font-size: 11.5px;
+      border-radius: 8px;
+      padding: 2px 7px;
+      margin-left: 6px;
+      vertical-align: middle;
+      font-weight: 500;
+      background: var(--gray-medium);
+      color: var(--primary-dark);
+    }
+    .dashboard-compare {
+      margin-top: 12px;
+      background: var(--white);
+      border: var(--card-border);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 12px 13px;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+    .dashboard-compare-tab {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--font-size-table);
+      margin-bottom: 9px;
+      min-width: 530px;
+    }
+    .dashboard-compare-tab th, .dashboard-compare-tab td {
+      text-align: left;
+      padding: 7px 3px;
+    }
+    .dashboard-compare-tab th {
+      color: var(--primary-dark);
+      background: var(--gray-medium);
+      font-weight: 700;
+      font-size: 12px;
+      border-bottom: 1px solid var(--gray-light);
+    }
+    .dashboard-compare-tab tr:nth-child(even) { background: var(--gray-light);}
+    .badge {
+      display: inline-block;
+      border-radius: 5px;
+      padding: 2px 7px;
+      font-size: 11px;
+      font-weight: 650;
+      color: var(--white);
+      margin-left: 2px;
+      vertical-align: middle;
+    }
+    .badge.sucesso { background: var(--success);}
+    .badge.erro { background: var(--danger);}
+    .badge.pendente { background: var(--warning); color:var(--primary);}
+    .badge.info { background: var(--info);}
+    .badge.neutra { background: var(--gray-dark); }
+
+    /* BOTÕES DE AÇÃO DAS ABAS */
+    .aba-actions {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      justify-content: flex-end;
+    }
+    @media (max-width: 600px) {
+      .aba-actions { flex-direction: column; align-items: stretch; }
+    }
+
+    .floating-btn {
+      display: none !important; /* Não usamos mais -- substituído por .aba-actions acima */
+    }
+    .table-wrapper {
+      background: var(--white);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      border: var(--card-border);
+      overflow-x: auto;
+      margin-bottom: 12px;
+      position: relative;
+      padding: 8px 0 2px 0;
+      min-width: 0;
+    }
+    table {
+      border-collapse: collapse;
+      min-width: 320px;
+      width: 100%;
+      font-size: var(--font-size-table);
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: var(--font-size-table);
+      font-weight: 500;
+    }
+    th {
+      font-weight: 700;
+      color: var(--primary-dark);
+      background: var(--gray-medium);
+      border-bottom: 1px solid var(--gray-light);
+      letter-spacing: 0.1px;
+    }
+    tbody tr { background: var(--white); transition: background 0.11s;}
+    tbody tr:nth-child(even) { background: var(--gray-light);}
+    tbody tr:hover { background: #e2eefa;}
+
+    /* MODAIS e OVERLAY CENTRALIZADO COM BLUR */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(30,40,70,0.20);
+      z-index: 1001;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(7px);
+      transition: opacity .22s;
+    }
+    .modal-overlay.active { display: flex !important; }
+    .modal {
+      background: var(--white);
+      border-radius: var(--border-radius);
+      box-shadow: 0 7px 34px rgba(0,30,90,0.18);
+      min-width: min(360px, 95vw); max-width:96vw;
+      padding: 13px 17px 13px 17px;
+      display: flex; flex-direction: column; justify-content: center;
+      margin: auto;
+      animation: fadeIn 0.16s;
+    }
+    @media (max-width: 470px) {
+      .modal {
+        min-width: 90vw;
+        width: 95vw;
+        padding: 8px 2vw 6px 2vw;
+      }
+    }
+    .modal-title {
+      font-size: 15px;
+      font-weight: bold;
+      color: var(--primary-dark);
+      letter-spacing: 0.5px;
+      margin-bottom: 13px;
+      padding-top: 1px;
+      display: flex; align-items: center; gap: 9px;
+      border-bottom: 1px solid #e0e0e0;
+      min-height: 35px;
+    }
+    .modal-close {
+      position: absolute;
+      top: 13px; right: 16px;
+      background: none;
+      border: none;
+      font-size: 21px;
+      color: var(--primary);
+      cursor: pointer;
+      font-weight: bold;
+      transition: color .20s;
+    }
+    .modal-close:hover { color: var(--danger);}
+    .form-row {
+      display: flex;
+      gap: 9px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .form-group {
+      flex: 1;
+      min-width: 111px;
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 0px;
+    }
+    .form-group label { font-size: 13px; margin-bottom: 5px; font-weight: 500; color: var(--primary-dark);}
+    .form-group input, .form-group select, .form-group textarea {
+      background: var(--gray-light);
+      border: 1px solid var(--gray-medium);
+      border-radius: 6px;
+      padding: 0 8px;
+      height: 40px;
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--primary-dark);
+      margin-bottom: 0px;
+      transition: border .14s;
+      outline: none;
+    }
+    .form-group textarea {
+      min-height: 40px;
+      height: 60px;
+      resize: vertical;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border: 1.3px solid var(--primary);}
+    .form-actions { display: flex; gap: 11px; margin-top: 9px; justify-content: flex-end;}
+    .btn {
+      border: none;
+      border-radius: 7px;
+      padding: 0 18px;
+      min-width: 80px;
+      height: 40px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 1px 6px rgba(32,56,130,0.10);
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      transition: background 0.3s, box-shadow 0.11s, color 0.11s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn.primary { background: var(--primary); color: var(--white);}
+    .btn.cancel { background: var(--gray-medium); color: var(--primary-dark);}
+    .btn.danger { background: var(--danger); color: var(--white);}
+    .btn.outline { background: none; color: var(--primary); border: 1px solid var(--primary);}
+    .btn[disabled], .btn.disabled { background: var(--gray-medium) !important; color: var(--gray-dark) !important; cursor: not-allowed;}
+    .spinner-overlay {
+      position: fixed; top:0; left:0; width:100vw; height:100vh;
+      background: rgba(255,255,255,0.85);
+      display: none; align-items: center; justify-content: center;
+      z-index: 1002; transition: opacity 0.22s;
+    }
+    .spinner-overlay.active { display: flex;}
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 6px solid var(--gray-medium);
+      border-top: 6px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin {
+      0% {transform: rotate(0);}
+      100% {transform: rotate(360deg);}
+    }
+    @media (max-width: 1100px) { .dashboard-kpis {flex-direction: column;} .main-area {padding: 9px;}}
+    @media (max-width:900px) {
+      body {grid-template-columns: 56px 1fr;}
+      .sidebar {width: 56px;}
+      .sidebar-header {font-size:0;}
+      .main-area{margin-left:0;}
+      .nav-btn {font-size:0;padding-left:8px;padding-right:8px;}
+    }
+    @media (max-width:700px) {
+      body {
+        grid-template-columns: 0 1fr;
+        grid-template-areas:
+          "header"
+          "main";
+      }
+      .sidebar { display: none;}
+      .header{padding-left:10px;}
+      .main-area{margin-left:0;}
+      .content-section{padding:9px 2vw;}
+    }
+    @media (max-width:510px) {
+      .dashboard-kpis {flex-direction: column;}
+      .form-row {flex-direction:column;}
+      .header-user{padding-left:6px;}
+      .table-wrapper {padding-left:2px;padding-right:2px;}
+      .dashboard-compare {padding: 8px;}
+    }
+  </style>
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo-placeholder">N</div>
+      <span>Núcleo Asset</span>
+    </div>
+    <div class="sidebar-nav">
+      <button class="nav-btn active" onclick="openTab('dashboard')" id="tab-btn-dashboard">Dashboard</button>
+      <button class="nav-btn" onclick="openTab('movimentos')" id="tab-btn-movimentos">Movimentos</button>
+      <button class="nav-btn" onclick="openTab('pedidos')" id="tab-btn-pedidos">Pedidos Diretoria</button>
+      <button class="nav-btn" onclick="openTab('regularizacao')" id="tab-btn-regularizacao">Regularização</button>
+      <button class="nav-btn" onclick="openTab('cadastro')" id="tab-btn-cadastro">Cadastro</button>
+      <button class="nav-btn" onclick="openTab('logs')" id="tab-btn-logs">Logs</button>
+    </div>
+  </nav>
+  <header class="header">
+    <span class="header-title">
+      Bem-vindo ao Gerenciador de Ativos - Núcleo Asset
+    </span>
+    <span class="header-user" id="user-email"></span>
+  </header>
+  <main class="main-area">
+    <!-- SPA SECTIONS -->
+    <section class="content-section active" id="section-dashboard">
+      <div class="dashboard-kpis" id="dashboard-kpis"></div>
+      <div class="dashboard-compare" id="dashboard-compare"></div>
+    </section>
+
+    <section class="content-section" id="section-movimentos">
+      <div class="aba-actions">
+        <button class="btn primary" onclick="openModal('modalNovaEncomenda')">Nova Encomenda</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="table-movimentos">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Brinde</th>
+              <th>Tipo</th>
+              <th>Qtd Req.</th>
+              <th>Qtd Rec.</th>
+              <th>Status</th>
+              <th>Prazo</th>
+              <th>Incidente</th>
+              <th>Usuário</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-movimentos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="content-section" id="section-pedidos">
+      <div class="aba-actions">
+        <button class="btn primary" onclick="openModal('modalPedidoEspecial')">Novo Pedido</button>
+      </div>
+      <form class="modal" style="box-shadow:none;" id="form-pedidoEspecial" onsubmit="submitPedidoEspecial(event)">
+        <div class="modal-title">Pedido Especial (Diretoria)</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="pedido-brinde">Brinde</label>
+            <select id="pedido-brinde" required></select>
+          </div>
+          <div class="form-group">
+            <label for="pedido-qtd">Quantidade</label>
+            <input type="number" id="pedido-qtd" min="1" required />
+          </div>
+          <div class="form-group">
+            <label for="pedido-data">Data Máxima</label>
+            <input type="date" id="pedido-data" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="min-width:120px;">
+            <label for="pedido-obs">Observação</label>
+            <input type="text" id="pedido-obs" maxlength="80"/>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Solicitar</button>
+          <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="content-section" id="section-regularizacao">
+      <div class="aba-actions">
+        <button class="btn primary" onclick="openModal('modalNovaTransferencia')">Nova Transferência</button>
+      </div>
+      <form class="modal" id="form-regularizacao" style="box-shadow:none;" onsubmit="submitRegularizacao(event)">
+        <div class="modal-title">Regularização Manual</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="reg-brinde">Brinde</label>
+            <select id="reg-brinde" required></select>
+          </div>
+          <div class="form-group">
+            <label for="reg-novo-saldo">Novo Saldo</label>
+            <input type="number" id="reg-novo-saldo" min="0" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="reg-just">Justificativa</label>
+            <input type="text" id="reg-just" maxlength="100"/>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary">Regularizar</button>
+          <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="content-section" id="section-cadastro">
+      <div class="aba-actions">
+        <button class="btn primary" onclick="openModal('modalNovoBrinde')">Novo Brinde</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="table-cadastro">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>Estoque Min.</th>
+              <th>Prazo Máx.</th>
+              <th>Data Cadastro</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-cadastro"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="content-section" id="section-logs">
+      <div class="table-wrapper">
+        <table id="table-logs">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Usuário</th>
+              <th>Ação</th>
+              <th>Justificativa</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-logs"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MODAIS DE ADIÇÃO/INCIDENTES -->
+    <div class="modal-overlay" id="modalNovoBrinde">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalNovoBrinde')">&times;</button>
+        <div class="modal-title">Cadastrar Novo Brinde</div>
+        <form id="form-cadastro-brinde" autocomplete="off" onsubmit="submitCadastroBrinde(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="novo-nome">Nome</label>
+              <input type="text" id="novo-nome" maxlength="55" required />
+            </div>
+            <div class="form-group">
+              <label for="novo-id">ID (3 dígitos)</label>
+              <input type="number" id="novo-id" min="100" max="999" required />
+            </div>
+            <div class="form-group">
+              <label for="novo-min">Estoque Mínimo</label>
+              <input type="number" id="novo-min" min="0" required />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Salvar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalNovaEncomenda">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalNovaEncomenda')">&times;</button>
+        <div class="modal-title">Nova Encomenda</div>
+        <form id="form-encomenda" autocomplete="off" onsubmit="submitEncomenda(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="encomenda-brinde">Brinde</label>
+              <select id="encomenda-brinde" required></select>
+            </div>
+            <div class="form-group">
+              <label for="encomenda-qtd">Quantidade</label>
+              <input type="number" id="encomenda-qtd" min="1" required />
+            </div>
+            <div class="form-group">
+              <label for="encomenda-prazo">Prazo Máximo</label>
+              <input type="number" id="encomenda-prazo" min="1" required />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Salvar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalNovaTransferencia">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalNovaTransferencia')">&times;</button>
+        <div class="modal-title">Nova Transferência</div>
+        <form id="form-transferencia" autocomplete="off" onsubmit="submitTransferencia(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="transf-brinde">Brinde</label>
+              <select id="transf-brinde" required></select>
+            </div>
+            <div class="form-group">
+              <label for="transf-qtd">Quantidade</label>
+              <input type="number" id="transf-qtd" min="1" required />
+            </div>
+            <div class="form-group">
+              <label for="transf-prazo">Prazo</label>
+              <input type="number" id="transf-prazo" min="1" required/>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Salvar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalIncidente">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalIncidente')">&times;</button>
+        <div class="modal-title danger">Registrar Incidente</div>
+        <form id="form-incidente" autocomplete="off" onsubmit="submitIncidente(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="incidente-desc">Descreva o incidente:</label>
+              <textarea id="incidente-desc" required rows="2"></textarea>
+              <input type="hidden" id="incidente-data">
+              <input type="hidden" id="incidente-id">
+              <input type="hidden" id="incidente-nome">
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn danger">Registrar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Pedido Especial modal overlay para botão da aba Pedidos -->
+    <div class="modal-overlay" id="modalPedidoEspecial">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalPedidoEspecial')">&times;</button>
+        <div class="modal-title">Pedido Especial (Diretoria)</div>
+        <form id="form-pedidoEspecialModal" autocomplete="off" onsubmit="submitPedidoEspecial(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pedido-brinde">Brinde</label>
+              <select id="pedido-brinde" required></select>
+            </div>
+            <div class="form-group">
+              <label for="pedido-qtd">Quantidade</label>
+              <input type="number" id="pedido-qtd" min="1" required />
+            </div>
+            <div class="form-group">
+              <label for="pedido-data">Data Máxima</label>
+              <input type="date" id="pedido-data" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="min-width:120px;">
+              <label for="pedido-obs">Observação</label>
+              <input type="text" id="pedido-obs" maxlength="80"/>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Solicitar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="spinner-overlay" id="loading-spinner">
+      <div class="spinner"></div>
+    </div>
+  </main>
+<script>
+// --- Controle de Modais/Resets
+function openModal(modalId) {
+  closeAllModals();
+  document.getElementById(modalId).classList.add('active');
+}
+function closeModal(modalId) {
+  document.getElementById(modalId).classList.remove('active');
+  let f = document.querySelector(`#${modalId} form`);
+  if (f) f.reset();
+}
+function closeAllModals() {
+  document.querySelectorAll('.modal-overlay').forEach(el=>{
+    el.classList.remove('active');
+    let f = el.querySelector('form');
+    if (f) f.reset();
+  });
+}
+function formReset(btn) {
+  let form = btn.closest('form');
+  if (form) form.reset();
+  closeAllModals();
+}
+function showLoading() { document.getElementById('loading-spinner').classList.add('active'); }
+function hideLoading() { document.getElementById('loading-spinner').classList.remove('active'); }
+
+// --- Navegação de abas SPA
+const TABS = [
+  { id: 'dashboard', label: 'Dashboard'},
+  { id: 'movimentos', label: 'Movimentos'},
+  { id: 'pedidos', label: 'Pedidos Diretoria'},
+  { id: 'regularizacao', label: 'Regularização'},
+  { id: 'cadastro', label: 'Cadastro'},
+  { id: 'logs', label: 'Logs'}
+];
+let _appdata = null;
+function openTab(tabName) {
+  TABS.forEach(t=>{
+    document.getElementById(`tab-btn-${t.id}`).classList.remove('active');
+    document.getElementById(`section-${t.id}`).classList.remove('active');
+  });
+  document.getElementById(`tab-btn-${tabName}`).classList.add('active');
+  document.getElementById(`section-${tabName}`).classList.add('active');
+}
+
+// --- Renderização de tabelas e dashboard
+function renderAppData(data) {
+  console.log('===== RECEBIDO DO BACKEND =====', data);
+
+  if (!data || typeof data !== 'object') {
+    alert("ERRO: Backend retornou nulo ou não-objeto!");
+    return;
+  }
+
+  // Loga todas as propriedades recebidas
+  Object.keys(data).forEach(function(key){
+    console.log("Propriedade recebida: ", key, " - ", data[key]);
+  });
+
+  // Protege os campos antes de acessar
+  let kpisObj = (data.kpis || { estoqueBaixo:0, pedidosPendentes:0, divergencias:0 });
+  let dashboard = data.dashboard || [];
+  let brindes = data.brindes || [];
+  let movimentos = data.movimentos || [];
+  let logs = data.logs || [];
+  let usuario = data.usuario || "Visitante";
+
+  // Mostra debug do backend, se houver
+  if (data.debug) console.log('DEBUG BACKEND:', data.debug);
+
+  // Não aborte se usuario for vazio!
+  if (!data.usuario || (typeof data.usuario === 'string' && (data.usuario === 'Erro' || data.usuario === "Usuário não detectado"))) {
+    document.getElementById('user-email').innerText = "Visitante";
+    console.warn("Nenhum usuário retornado. Backend operando em modo anônimo.");
+  } else {
+    document.getElementById('user-email').innerText = data.usuario;
+  }
+
+  _appdata = data;
+
+  // KPIs
+  const kpiS = document.getElementById('dashboard-kpis');
+  kpiS.innerHTML = '';
+  // Apenas atribui kpis, não redeclare: (remove o let!!)
+  const kpis = [
+    {title:'Estoque Baixo',value:kpisObj.estoqueBaixo||0,badge:'Alerta',class:'danger'},
+    {title:'Pedidos Pendentes',value:kpisObj.pedidosPendentes||0,badge:'Ação',class:'warning'},
+    {title:'Divergências',value:kpisObj.divergencias||0,badge:'Verificar',class:'info'}
+  ];
+  kpis.forEach(k=>{
+    let card = document.createElement('div');
+    card.className = 'kpi-card';
+    card.innerHTML = `
+      <div class="kpi-title">${k.title}</div>
+      <div class="kpi-value">${k.value} <span class="kpi-badge ${k.class}">${k.badge}</span></div>
+    `;
+    kpiS.appendChild(card);
+  });
+
+  // Dashboard comparativo
+  const dcomp = document.getElementById('dashboard-compare');
+  let rows = dashboard;
+  if(rows.length === 0) {
+    dcomp.innerHTML = `<b>Nenhum dado de estoque para exibir.</b>`;
+  } else {
+    dcomp.innerHTML = `
+      <b>Estoque Núcleo vs COSUP</b>
+      <table class="dashboard-compare-tab">
+        <thead>
+          <tr>
+            <th>Brinde</th>
+            <th>Núcleo</th>
+            <th>COSUP</th>
+            <th>Status</th>
+            <th>Divergência</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(d=>{
+            let status = '';
+            if(+d.saldo_nucleo===0) status='<span class="badge danger">Zero</span>';
+            else if(+d.saldo_nucleo<=+d.min) status='<span class="badge danger">Baixo</span>';
+            else status='<span class="badge sucesso">Ok</span>';
+            let diverg = (+d.saldo_nucleo!==+d.saldo_cosup) ? '<span class="badge info">COSUP Diver.</span>' : '';
+            return `<tr>
+              <td>${d.nome||''}</td>
+              <td>${d.saldo_nucleo||0}</td>
+              <td>${d.saldo_cosup||0}</td>
+              <td>${status}</td>
+              <td>${diverg}</td>
+            </tr>`
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  renderMovimentos(movimentos);
+  preencherDropdowns(data);
+  renderCadastroTable(data);
+  renderLogsTable(data);
+}
+
+function renderMovimentos(movs) {
+  let tbody = document.getElementById('tbody-movimentos');
+  tbody.innerHTML = '';
+  if(!movs || movs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10"><em>Nenhum movimento encontrado.</em></td></tr>`;
+    return;
+  }
+  movs.forEach(m=>{
+    let badgeC = m.status==='Desconformidade'?'danger':
+      m.status==='Encomenda'?'warning':
+      m.status==='Transferência'?'info':'neutra';
+    let btnIncidente = '';
+    if(m.status==='Desconformidade') {
+      btnIncidente = `<button class="btn danger outline btn-sm" style="font-size:11px;padding:2px 8px;"
+        onclick="openIncidenteModal('${m.data}','${m.id}','${m.nome}')">Incidente</button>`;
+    }
+    tbody.innerHTML += `
+      <tr>
+        <td>${m.data||''}</td>
+        <td>${m.nome||''}</td>
+        <td>${m.tipo||''}</td>
+        <td>${m.qtd_rq||''}</td>
+        <td>${m.qtd_rc||''}</td>
+        <td><span class="badge ${badgeC}">${m.status||''}</span></td>
+        <td>${m.prazo||''}</td>
+        <td>${m.incidente||''}</td>
+        <td>${m.usuario||''}</td>
+        <td>${btnIncidente}</td>
+      </tr>
+    `;
+  });
+}
+
+function preencherDropdowns(data) {
+  let dropdowns = [
+    'encomenda-brinde','transf-brinde','pedido-brinde','reg-brinde'
+  ];
+  dropdowns.forEach(id=>{
+    let el = document.getElementById(id);
+    if(!el) return;
+    el.innerHTML = '<option value="">Selecione...</option>';
+    if(!data.brindes || data.brindes.length === 0) {
+      el.innerHTML += '<option value="">Nenhum item disponível</option>';
+      return;
+    }
+    (data.brindes||[]).forEach(b=>{
+      el.innerHTML += `<option value="${b.id}" data-nome="${b.nome}">${b.nome}</option>`;
+    });
+  });
+}
+
+function renderCadastroTable(data) {
+  let tbody = document.getElementById('tbody-cadastro');
+  tbody.innerHTML = '';
+  if(!data.brindes || data.brindes.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5"><em>Nenhum item encontrado no cadastro.</em></td></tr>`;
+    return;
+  }
+  data.brindes.forEach(b=>{
+    let brinde = (data.dashboard||[]).find(x=>x.id===b.id);
+    tbody.innerHTML += `
+      <tr>
+        <td>${b.id}</td>
+        <td>${b.nome}</td>
+        <td>${brinde && brinde.min || 0}</td>
+        <td>${brinde && brinde.prazo || ''}</td>
+        <td>${brinde && brinde.data_criacao || ''}</td>
+      </tr>
+    `;
+  });
+}
+
+function renderLogsTable(data) {
+  let tbody = document.getElementById('tbody-logs');
+  tbody.innerHTML = '';
+  if(!data.logs || data.logs.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4"><em>Nenhum log registrado.</em></td></tr>`;
+    return;
+  }
+  data.logs.forEach(l=>{
+    tbody.innerHTML += `
+      <tr>
+        <td>${l.timestamp}</td>
+        <td>${l.usuario}</td>
+        <td>${l.acao}</td>
+        <td>${l.justificativa||''}</td>
+      </tr>
+    `;
+  });
+}
+
+function openIncidenteModal(data,id,nome) {
+  closeAllModals();
+  document.getElementById('modalIncidente').classList.add('active');
+  document.getElementById('incidente-data').value = data;
+  document.getElementById('incidente-id').value = id;
+  document.getElementById('incidente-nome').value = nome;
+}
+
+// --- Submits de todos os formulários/spa para backend
+function submitCadastroBrinde(event) {
+  event.preventDefault();
+  showLoading();
+  let dados = {
+    nome: document.getElementById('novo-nome').value,
+    id: document.getElementById('novo-id').value,
+    minimo: document.getElementById('novo-min').value,
+    isNovo: true
+  };
+  google.script.run.withSuccessHandler(resp=>{
+    hideLoading();
+    closeAllModals();
+    atualizarApp();
+  }).registrarEncomenda(dados);
+}
+function submitEncomenda(event) {
+  event.preventDefault();
+  showLoading();
+  let sel = document.getElementById('encomenda-brinde');
+  let brindeId = sel.value;
+  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+  let dados = {
+    id: brindeId,
+    nome: brindeNome,
+    qtd: document.getElementById('encomenda-qtd').value,
+    prazo: document.getElementById('encomenda-prazo').value
+  };
+  google.script.run.withSuccessHandler(resp=>{
+    hideLoading();
+    closeAllModals();
+    atualizarApp();
+  }).registrarEncomenda(dados);
+}
+function submitTransferencia(event) {
+  event.preventDefault();
+  showLoading();
+  let sel = document.getElementById('transf-brinde');
+  let brindeId = sel.value;
+  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+  let dados = {
+    id: brindeId,
+    nome: brindeNome,
+    qtd: document.getElementById('transf-qtd').value,
+    prazo: document.getElementById('transf-prazo').value
+  };
+  google.script.run.withSuccessHandler(resp=>{
+    hideLoading();
+    closeAllModals();
+    atualizarApp();
+  }).registrarTransferencia(dados);
+}
+function submitRegularizacao(event) {
+  event.preventDefault();
+  showLoading();
+  let sel = document.getElementById('reg-brinde');
+  let brindeId = sel.value;
+  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+  let dados = {
+    id: brindeId,
+    nome: brindeNome,
+    novoSaldo: document.getElementById('reg-novo-saldo').value,
+    justificativa: document.getElementById('reg-just').value
+  };
+  google.script.run.withSuccessHandler(resp=>{
+    hideLoading();
+    closeAllModals();
+    atualizarApp();
+  }).regularizarManual(dados);
+}
+function submitPedidoEspecial(event) {
+  event.preventDefault();
+  showLoading();
+  let sel = document.getElementById('pedido-brinde');
+  let brindeId = sel.value;
+  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+  let dados = {
+    id: brindeId,
+    nome: brindeNome,
+    qtd: document.getElementById('pedido-qtd').value,
+    data: document.getElementById('pedido-data').value,
+    obs: document.getElementById('pedido-obs').value
+  };
+  google.script.run.withSuccessHandler(resp=>{
+    hideLoading();
+    closeAllModals();
+    atualizarApp();
+  }).registrarPedidoEspecial(dados);
+}
+function submitIncidente(event) {
+  event.preventDefault();
+  showLoading();
+  let dados = {
+    data: document.getElementById('incidente-data').value,
+    id: document.getElementById('incidente-id').value,
+    nome: document.getElementById('incidente-nome').value,
+    incidente: document.getElementById('incidente-desc').value
+  };
+  google.script.run.withSuccessHandler(resp=>{
+    hideLoading();
+    closeAllModals();
+    atualizarApp();
+  }).confirmarRecebimento(dados);
+}
+
+// --- SPA INIT
+function atualizarApp() {
+  showLoading();
+  google.script.run.withSuccessHandler(data=>{
+    hideLoading();
+    renderAppData(data);
+  }).getAppData();
+}
+window.onload = () => {
+  atualizarApp();
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){ closeAllModals(); }
+  });
+};
+</script>
+</body>
+</html>
