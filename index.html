@@ -991,11 +991,10 @@ function submitCadastroBrinde(event) {
     minimo: document.getElementById('novo-min').value,
     isNovo: true
   };
-  google.script.run.withSuccessHandler(resp=>{
-    hideLoading();
-    closeAllModals();
-    atualizarApp();
-  }).registrarEncomenda(dados);
+  google.script.run
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao cadastrar brinde: ' + (err?.message || err)); })
+    .registrarEncomenda(dados);
 }
 function submitEncomenda(event) {
   event.preventDefault();
@@ -1009,11 +1008,10 @@ function submitEncomenda(event) {
     qtd: document.getElementById('encomenda-qtd').value,
     prazo: document.getElementById('encomenda-prazo').value
   };
-  google.script.run.withSuccessHandler(resp=>{
-    hideLoading();
-    closeAllModals();
-    atualizarApp();
-  }).registrarEncomenda(dados);
+  google.script.run
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar encomenda: ' + (err?.message || err)); })
+    .registrarEncomenda(dados);
 }
 function submitTransferencia(event) {
   event.preventDefault();
@@ -1027,11 +1025,10 @@ function submitTransferencia(event) {
     qtd: document.getElementById('transf-qtd').value,
     prazo: document.getElementById('transf-prazo').value
   };
-  google.script.run.withSuccessHandler(resp=>{
-    hideLoading();
-    closeAllModals();
-    atualizarApp();
-  }).registrarTransferencia(dados);
+  google.script.run
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar transferência: ' + (err?.message || err)); })
+    .registrarTransferencia(dados);
 }
 function submitRegularizacao(event) {
   event.preventDefault();
@@ -1045,11 +1042,10 @@ function submitRegularizacao(event) {
     novoSaldo: document.getElementById('reg-novo-saldo').value,
     justificativa: document.getElementById('reg-just').value
   };
-  google.script.run.withSuccessHandler(resp=>{
-    hideLoading();
-    closeAllModals();
-    atualizarApp();
-  }).regularizarManual(dados);
+  google.script.run
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao regularizar: ' + (err?.message || err)); })
+    .regularizarManual(dados);
 }
 function submitPedidoEspecial(event) {
   event.preventDefault();
@@ -1064,11 +1060,10 @@ function submitPedidoEspecial(event) {
     data: document.getElementById('pedido-data').value,
     obs: document.getElementById('pedido-obs').value
   };
-  google.script.run.withSuccessHandler(resp=>{
-    hideLoading();
-    closeAllModals();
-    atualizarApp();
-  }).registrarPedidoEspecial(dados);
+  google.script.run
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar pedido especial: ' + (err?.message || err)); })
+    .registrarPedidoEspecial(dados);
 }
 function submitIncidente(event) {
   event.preventDefault();
@@ -1079,20 +1074,19 @@ function submitIncidente(event) {
     nome: document.getElementById('incidente-nome').value,
     incidente: document.getElementById('incidente-desc').value
   };
-  google.script.run.withSuccessHandler(resp=>{
-    hideLoading();
-    closeAllModals();
-    atualizarApp();
-  }).confirmarRecebimento(dados);
+  google.script.run
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao confirmar recebimento: ' + (err?.message || err)); })
+    .confirmarRecebimento(dados);
 }
 
 // --- SPA INIT
 function atualizarApp() {
   showLoading();
-  google.script.run.withSuccessHandler(data=>{
-    hideLoading();
-    renderAppData(data);
-  }).getAppData();
+  google.script.run
+    .withSuccessHandler(data=>{ hideLoading(); renderAppData(data); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao carregar dados do servidor: ' + (err?.message || err)); })
+    .getAppData();
 }
 window.onload = () => {
   atualizarApp();
