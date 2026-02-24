@@ -21,15 +21,26 @@ function criarAbasBanco(ss) {
     {nome:'DB_Estoque_Nucleo', cols:['ID','Nome','Saldo_Atual']},
     {nome:'DB_Controle_Emails', cols:['Data_Hora','Item_ID','Tipo_Alerta','Hash_Status']},
     {nome:'DB_Logs', cols:['Timestamp','Usuario','Ação','Justificativa']},
-    {nome:'Espelho', cols:['ITEM','QUANT. COSUP','QUANT. DTVM','QUANT. DTVM']}
+    {nome:'Espelho', cols:['ITEM','QUANT.COSUP']}
   ];
   for (let aba of abas) {
     let sheet = ss.getSheetByName(aba.nome);
     if (!sheet) {
       sheet = ss.insertSheet(aba.nome);
-      sheet.getRange(1,1,1,aba.cols.length).setValues([aba.cols]);
+      if (aba.nome === 'Espelho') {
+        sheet.getRange(1,1).setValue(aba.nome);
+        sheet.getRange(2,1,1,aba.cols.length).setValues([aba.cols]);
+      } else {
+        sheet.getRange(1,1,1,aba.cols.length).setValues([aba.cols]);
+      }
     }
   }
+}
+
+function formatDateSafe(v) {
+  if (!v && v !== 0) return '';
+  if (v instanceof Date) return Utilities.formatDate(v, "GMT-3", "yyyy-MM-dd HH:mm:ss");
+  return String(v);
 }
 
 function getActiveUserEmail() {
@@ -102,7 +113,7 @@ function getAppData() {
         let found = cosupRows.find(row => row.nome == buscaNome);
         return found ? Number(found.cosup) : 0;
       })();
-      dashboard.push({ id, nome, saldo_nucleo, saldo_cosup, min, prazo, data_criacao });
+      dashboard.push({ id: String(id || ''), nome: String(nome || ''), saldo_nucleo, saldo_cosup, min, prazo: String(prazo || ''), data_criacao: formatDateSafe(data_criacao) });
     }
 
     // Lê DB_Movimentacoes
@@ -110,16 +121,16 @@ function getAppData() {
     let movs = ss.getSheetByName('DB_Movimentacoes');
     if (movs && movs.getLastRow() > 1) {
       movimentos = movs.getRange(2, 1, movs.getLastRow() - 1, 10).getValues().map(row => ({
-        data: row[0],
-        id: row[1],
-        nome: row[2],
-        tipo: row[3],
-        qtd_rq: row[4],
-        qtd_rc: row[5],
-        prazo: row[6],
-        status: row[7],
-        usuario: row[8],
-        incidente: row[9]
+        data: formatDateSafe(row[0]),
+        id: String(row[1] || ''),
+        nome: String(row[2] || ''),
+        tipo: String(row[3] || ''),
+        qtd_rq: Number(row[4]) || 0,
+        qtd_rc: Number(row[5]) || 0,
+        prazo: formatDateSafe(row[6]),
+        status: String(row[7] || ''),
+        usuario: String(row[8] || ''),
+        incidente: String(row[9] || '')
       }));
       Logger.log("Linhas em DB_Movimentacoes: " + movimentos.length);
     } else {
@@ -131,10 +142,10 @@ function getAppData() {
     let logs = ss.getSheetByName('DB_Logs');
     if (logs && logs.getLastRow() > 1) {
       logList = logs.getRange(2, 1, logs.getLastRow() - 1, 4).getValues().map(row => ({
-        timestamp: row[0],
-        usuario: row[1],
-        acao: row[2],
-        justificativa: row[3]
+        timestamp: formatDateSafe(row[0]),
+        usuario: String(row[1] || ''),
+        acao: String(row[2] || ''),
+        justificativa: String(row[3] || '')
       }));
       Logger.log("Linhas em DB_Logs: " + logList.length);
     } else {
@@ -237,8 +248,8 @@ function registrarTransferencia(dados) {
   let emailUser = getActiveUserEmail();
 
   let cosupDisp = 0;
-  if (espelho.getLastRow()>1) {
-    let vals = espelho.getRange(2,1,espelho.getLastRow()-1,2).getValues()
+  if (espelho.getLastRow()>2) {
+    let vals = espelho.getRange(3,1,espelho.getLastRow()-2,2).getValues()
       .map(row => ({
         nome: String(row[0]).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
         cosup: Number(row[1]) || 0
@@ -271,7 +282,7 @@ function registrarTransferencia(dados) {
 
 /** -- Confirmação de Recebimento com INCIDENTE obrigatório para status Desconformidade e Alinhamento -- */
 function confirmarRecebimento(dados) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
   const movs = ss.getSheetByName('DB_Movimentacoes');
   const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
@@ -338,7 +349,7 @@ function registrarControleEmail(item_id, tipo, chave, ss) {
 
 /** ---- Sincronização e Divergência ---- */
 function checarDivergencias() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
   const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
   const espelho = ss.getSheetByName('Espelho');
@@ -346,7 +357,7 @@ function checarDivergencias() {
   const controle_emails = ss.getSheetByName('DB_Controle_Emails');
 
   let valsN = estoqueN.getLastRow()>1 ? estoqueN.getRange(2,1,estoqueN.getLastRow()-1,3).getValues() : [];
-  let valsE = espelho.getLastRow()>1 ? espelho.getRange(2,1,espelho.getLastRow()-1,2).getValues().map(row => ({
+  let valsE = espelho.getLastRow()>2 ? espelho.getRange(3,1,espelho.getLastRow()-2,2).getValues().map(row => ({
     nome: String(row[0]).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
     cosup: Number(row[1]) || 0
   })) : [];
@@ -381,7 +392,7 @@ function checarDivergencias() {
 
 /** ------ REGULARIZAÇÃO MANUAL ------ */
 function regularizarManual(dados) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
   const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
   const movs = ss.getSheetByName('DB_Movimentacoes');
@@ -409,7 +420,7 @@ function regularizarManual(dados) {
 
 /** ------ PEDIDO ESPECIAL (diretoria) ----- */
 function registrarPedidoEspecial(dados) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
   dispararEmail('Requisito Diretoria',dados);
   logAcao('Pedido especial diretoria', getActiveUserEmail(), `Brinde: ${dados.nome}, Qtd: ${dados.qtd}, Obs: ${dados.obs||''}`);
@@ -418,7 +429,7 @@ function registrarPedidoEspecial(dados) {
 
 /** -------- LOG -------- */
 function logAcao(acao, usuario, justificativa) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
   const log = ss.getSheetByName('DB_Logs');
   log.appendRow([
     Utilities.formatDate(new Date(),"GMT-3","yyyy-MM-dd HH:mm:ss"),
