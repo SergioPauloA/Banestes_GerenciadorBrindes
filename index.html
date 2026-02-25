@@ -230,15 +230,15 @@
       padding: 2px 7px;
       font-size: 11px;
       font-weight: 650;
-      color: var(--white);
       margin-left: 2px;
       vertical-align: middle;
     }
-    .badge.sucesso { background: var(--success);}
-    .badge.erro { background: var(--danger);}
-    .badge.pendente { background: var(--warning); color:var(--primary);}
-    .badge.info { background: var(--info);}
-    .badge.neutra { background: var(--gray-dark); }
+    /* cor texto branca para tudo menos warning */
+    .badge.sucesso { background: var(--success); color: var(--white);}
+    .badge.danger, .badge.erro { background: var(--danger); color: var(--white);}
+    .badge.info { background: var(--info); color: var(--white);}
+    .badge.neutra { background: var(--gray-dark); color: var(--white);}
+    .badge.warning { background: var(--warning); color: #502d00; } /* cor escura para texto amarelo */
 
     /* BOTÕES DE AÇÃO DAS ABAS */
     .aba-actions {
@@ -901,7 +901,7 @@ function renderAppData(data) {
             <th>Núcleo</th>
             <th>COSUP</th>
             <th>Status</th>
-            <th>Divergência</th>
+            <th>Total em estoque</th>
           </tr>
         </thead>
         <tbody>
@@ -916,7 +916,7 @@ function renderAppData(data) {
               <td>${d.saldo_nucleo||0}</td>
               <td>${d.saldo_cosup||0}</td>
               <td>${status}</td>
-              <td>${diverg}</td>
+              <td>${+d.total_estoque || 0}</td>
             </tr>`
           }).join('')}
         </tbody>
