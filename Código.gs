@@ -66,11 +66,13 @@ function getAppData() {
     if (cadastro && cadastro.getLastRow() > 1) {
       cadastroRows = cadastro.getRange(2, 1, cadastro.getLastRow() - 1, 5).getValues();
       brindes = cadastroRows.map(row => ({
-        id: row[0], nome: row[1]
+        id: row[0],
+        nome: row[1],
+        min: row[2] !== "" ? row[2] : "",
+        prazo: row[3] !== "" ? row[3] : "",
+        data_criacao: formatDateSafe(row[4])
       }));
       Logger.log("Linhas em DB_Cadastro: " + brindes.length);
-    } else {
-      Logger.log("DB_Cadastro vazio ou não encontrado");
     }
 
     // Lê DB_Estoque_Nucleo
@@ -79,8 +81,6 @@ function getAppData() {
     if (estoqueN && estoqueN.getLastRow() > 1) {
       estoqueRows = estoqueN.getRange(2, 1, estoqueN.getLastRow() - 1, 3).getValues();
       Logger.log("Linhas em DB_Estoque_Nucleo: " + estoqueRows.length);
-    } else {
-      Logger.log("DB_Estoque_Nucleo vazio ou não encontrado");
     }
 
     // Lê Espelho (COSUP)
@@ -92,9 +92,6 @@ function getAppData() {
           nome: String(row[0] || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
           cosup: Number(row[1]) || 0
         }));
-      Logger.log("Linhas em Espelho (COSUP): " + cosupRows.length);
-    } else {
-      Logger.log("Espelho vazio ou não encontrado");
     }
 
     // DASHBOARD (comparativo)
@@ -103,17 +100,31 @@ function getAppData() {
       const id = cad[0], nome = cad[1], min = Number(cad[2]), prazo = cad[3], data_criacao = cad[4];
       const buscaNome = String(nome || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
-      // Saldo núcleo
+      // Saldo núcleo e COSUP
       const saldo_nucleo = (() => {
         let found = estoqueRows.find(row => String(row[0]) == String(id));
         return found ? Number(found[2]) : 0;
       })();
-      // Saldo COSUP
       const saldo_cosup = (() => {
         let found = cosupRows.find(row => row.nome == buscaNome);
         return found ? Number(found.cosup) : 0;
       })();
-      dashboard.push({ id: String(id || ''), nome: String(nome || ''), saldo_nucleo, saldo_cosup, min, prazo: String(prazo || ''), data_criacao: formatDateSafe(data_criacao) });
+
+      // STATUS do estoque núcleo
+      let status = '';
+      if (saldo_nucleo === 0) status = 'Zero';
+      else if (saldo_nucleo <= min) status = 'Baixo';
+      else status = 'Ok';
+
+      dashboard.push({
+        id: String(id || ''),
+        nome: String(nome || ''),
+        saldo_nucleo, saldo_cosup,
+        min,
+        prazo: String(prazo || ''),
+        data_criacao: formatDateSafe(data_criacao),
+        status // <<-- aqui!
+      });
     }
 
     // Lê DB_Movimentacoes
@@ -132,9 +143,6 @@ function getAppData() {
         usuario: String(row[8] || ''),
         incidente: String(row[9] || '')
       }));
-      Logger.log("Linhas em DB_Movimentacoes: " + movimentos.length);
-    } else {
-      Logger.log("DB_Movimentacoes vazio ou não encontrado");
     }
 
     // Lê DB_Logs
@@ -147,15 +155,17 @@ function getAppData() {
         acao: String(row[2] || ''),
         justificativa: String(row[3] || '')
       }));
-      Logger.log("Linhas em DB_Logs: " + logList.length);
-    } else {
-      Logger.log("DB_Logs vazio ou não encontrado");
     }
 
-    // KPIs
-    let estoqueBaixo = dashboard.filter(d => d.saldo_nucleo <= d.min).length;
-    let pedidosPendentes = movimentos.filter(m => m.status === 'Encomenda').length;
-    let divergencias = dashboard.filter(d => d.saldo_nucleo !== d.saldo_cosup).length;
+    // ================================
+    // KPIs NOVOS PARA OS QUATRO CARDS:
+    // ================================
+    // KPIs baseados em movimentos
+    let pedidosTransferencia = movimentos.filter(m => m.status === 'Transferência').length;      // "Transferência"
+    let pedidosEncomenda = movimentos.filter(m => m.status === 'Encomenda').length;             // "Encomenda"
+    let pedidosDesconformidade = movimentos.filter(m => m.status === 'Desconformidade').length; // "Desconformidade"
+    // KPIs baseado no dashboard
+    let estoqueBaixo = dashboard.filter(d => d.status === 'Baixo').length;  // "Estoque Baixo" (música do núcleo)
 
     // Usuário (com fallback)
     let usuarioEmail = "";
@@ -166,14 +176,18 @@ function getAppData() {
       usuarioEmail = "Usuário não detectado";
     }
 
-    Logger.log("BACKEND OK - Dados recuperados.");
     return {
       brindes,
       dashboard,
       movimentos,
       logs: logList,
       usuario: usuarioEmail,
-      kpis: { estoqueBaixo, pedidosPendentes, divergencias },
+      kpis: {
+        pedidosTransferencia,
+        pedidosEncomenda,
+        pedidosDesconformidade,
+        estoqueBaixo
+      },
       timestamp: Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss"),
       debug: {
         brindesLen: brindes.length,
@@ -191,7 +205,7 @@ function getAppData() {
       movimentos: [],
       logs: [],
       usuario: "Erro",
-      kpis: { estoqueBaixo: 0, pedidosPendentes: 0, divergencias: 0 },
+      kpis: { pedidosTransferencia: 0, pedidosEncomenda: 0, pedidosDesconformidade: 0, estoqueBaixo: 0 },
       timestamp: "",
       debug: { error: err.toString() }
     };
@@ -291,7 +305,10 @@ function confirmarRecebimento(dados) {
   const vals = movs.getRange(2,1,movs.getLastRow()-1,10).getValues();
   let idx = -1;
   for(let i=0;i<vals.length;i++) {
-    if(vals[i][1]==dados.id && vals[i][0]==dados.data && vals[i][2]==dados.nome) { idx=i+2; break;}
+    if(vals[i][1]==dados.id && vals[i][0]==dados.data && vals[i][2]==dados.nome) {
+      idx=i+2;
+      break;
+    }
   }
   if(idx<0) throw new Error('Registro de movimentação não localizado.');
 
@@ -304,29 +321,75 @@ function confirmarRecebimento(dados) {
     statusReceb='Desconformidade';
     if(!incidenteMsg || incidenteMsg.trim()=='') throw new Error("É obrigatório descrever o incidente para recebimento com divergência.");
     if(!existeEmailDesconformidade(dados.nome, qtdRec, ss)) {
-      dispararEmail('Desconformidade', {nome:dados.nome, saldo_nucleo:qtdRec, saldo_cosup:'-', incidente:incidenteMsg});
+      dispararEmail('Desconformidade', {
+        nome: dados.nome,
+        saldo_nucleo: qtdRec,
+        saldo_cosup: '-',
+        incidente: incidenteMsg,
+        qtdRequisitada: qtdReq,
+        qtdRecebida: qtdRec
+      });
       registrarControleEmail(dados.id, 'Desconformidade', dados.nome+qtdRec, ss);
     }
   }
   else if(qtdRec>qtdReq) {
     statusReceb='Alinhamento';
-    dispararEmail('Alinhamento', {nome:dados.nome, qtdRequisitada: qtdReq, qtdRecebida: qtdRec});
+    dispararEmail('Alinhamento', {
+      nome: dados.nome,
+      qtdRequisitada: qtdReq,
+      qtdRecebida: qtdRec,
+      id: dados.id
+    });
   }
   else {
     statusReceb='Confirmado';
   }
-  movs.getRange(idx,6).setValue(qtdRec);
-  movs.getRange(idx,8).setValue(statusReceb);
-  movs.getRange(idx,10).setValue(incidenteMsg);
+  movs.getRange(idx,6).setValue(qtdRec);       // Coluna qtd recebida
+  movs.getRange(idx,8).setValue(statusReceb);  // Coluna status
+  movs.getRange(idx,10).setValue(incidenteMsg);// Coluna incidente
 
   let estoqueRows=estoqueN.getLastRow()>1?estoqueN.getRange(2,1,estoqueN.getLastRow()-1,3).getValues():[];
   let estIdx=estoqueRows.findIndex(row=>row[1]==dados.nome);
+  let saldoAtual = null;
   if(estIdx>=0){
-    let saldoAtual = Number(estoqueRows[estIdx][2]) + qtdRec;
+    saldoAtual = Number(estoqueRows[estIdx][2]) + qtdRec;
     estoqueN.getRange(estIdx+2,3).setValue(saldoAtual);
+
+    // === ETAPA PARA ENVIO DE ALERTAS DE ESTOQUE ===
+    // Pegue o valor mínimo para o produto na DB_Cadastro:
+    const cadastro = ss.getSheetByName('DB_Cadastro');
+    let minVal = 0;
+    if (cadastro && cadastro.getLastRow() > 1) {
+      let cadastroRows = cadastro.getRange(2, 1, cadastro.getLastRow() - 1, 5).getValues();
+      // Busque pelo ID ou nome:
+      let cRow = cadastroRows.find(row => String(row[0]) === String(dados.id));
+      if (cRow) {
+        minVal = Number(cRow[2]);
+      }
+    }
+    // Dispare o alerta SE saldo == 0 OU saldo <= minVal (mas só dispara de acordo com a lógica que preferir)
+    if(saldoAtual === 0) {
+      enviarAlertaEstoque('zero', {
+        id: dados.id,
+        nome: dados.nome,
+        saldo_nucleo: saldoAtual,
+        min: minVal
+      });
+    } else if(saldoAtual <= minVal) {
+      enviarAlertaEstoque('minimo', {
+        id: dados.id,
+        nome: dados.nome,
+        saldo_nucleo: saldoAtual,
+        min: minVal
+      });
+    }
+    // === FIM DOS ALERTAS DE ESTOQUE ===
   }
-  logAcao('Confirmação de recebimento', emailUser, 
-    `Brinde: ${dados.nome}, Qtd Req: ${qtdReq}, Qtd Rec: ${qtdRec}, Status: ${statusReceb}, Incidente: ${incidenteMsg}`);
+  logAcao(
+    'Confirmação de recebimento',
+    emailUser,
+    `Brinde: ${dados.nome}, Qtd Req: ${qtdReq}, Qtd Rec: ${qtdRec}, Status: ${statusReceb}, Incidente: ${incidenteMsg}`
+  );
   return {sucesso:true, mensagem:"Recebimento confirmado."};
 }
 
@@ -422,7 +485,22 @@ function regularizarManual(dados) {
 function registrarPedidoEspecial(dados) {
   const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
-  dispararEmail('Requisito Diretoria',dados);
+
+  // Disparar e-mail com o template correto
+  let emails = [
+    'gadian@banestes.com.br',
+    'asmoreira@banestes.com.br',
+    'csdamasceno@banestes.com.br'
+  ];
+  let subject = `Pedido Especial de Diretoria - Brinde ${dados.nome}`;
+  let htmlBody = renderEmailPedidoDiretoria(dados);
+
+  MailApp.sendEmail({
+    to: emails.join(","),
+    subject: subject,
+    htmlBody: htmlBody
+  });
+
   logAcao('Pedido especial diretoria', getActiveUserEmail(), `Brinde: ${dados.nome}, Qtd: ${dados.qtd}, Obs: ${dados.obs||''}`);
   return {sucesso:true, mensagem:"Pedido especial enviado."};
 }
@@ -441,33 +519,292 @@ function logAcao(acao, usuario, justificativa) {
 
 /** -------- SISTEMA DE EMAILS -------- */
 function dispararEmail(tipo, dados) {
-  const emails = [
-    'gadian@banestes.com.br', 'asmoreira@banestes.com.br',
-    'csdamasceno@banestes.com.br', 'spandrade@banestes.com.br'
-  ];
-  let subject='',body='';
-  if(tipo==='Encomenda'){
-    subject=`Nova Encomenda - Brinde ${dados.nome}`;
-    body=`Solicitação de encomenda: <b>${dados.nome}</b> (${dados.qtd} unidades)<br>PRAZO: ${dados.prazo||''}<br>Solicitante: ${getActiveUserEmail()}`;
-  } else if(tipo==='Transferência') {
-    subject=`Nova Transferência - Brinde ${dados.nome}`;
-    body=`Solicitação de transferência: <b>${dados.nome}</b> (${dados.qtd} unidades)<br>Solicitante: ${getActiveUserEmail()}`;
-  } else if(tipo==='Desconformidade') {
-    subject=`Desconformidade detectada - Brinde ${dados.nome}`;
-    body=`<b>Brinde:</b> ${dados.nome} | Núcleo: ${dados.saldo_nucleo} | COSUP: ${dados.saldo_cosup}<br>Incidente: ${dados.incidente||''}<br>Executor: ${getActiveUserEmail()}`;
-  } else if(tipo==='Alinhamento') {
-    subject=`Alinhamento necessário - Brinde ${dados.nome}`;
-    body=`Recebida quantidade acima do solicitado para <b>${dados.nome}</b>:<br>Recebida: ${dados.qtdRecebida} vs Requisitada: ${dados.qtdRequisitada}.<br>Executor: ${getActiveUserEmail()}`;
-  } else if(tipo==='Requisito Diretoria') {
-    subject=`Pedido especial - Diretoria [${dados.nome}]`;
-    body=`<b>Pedido especial:</b> Brinde: ${dados.nome} | Qtd: ${dados.qtd}.<br>Data: ${dados.data}<br>Observação: ${dados.obs||''}<br>Executor: ${getActiveUserEmail()}`;
+  let emails = [];
+  let subject = '';
+  let body = '';
+
+  if(tipo === 'Encomenda') {
+    subject = `Nova Encomenda - Brinde ${dados.nome}`;
+    body = renderEmailFormalizacaoInterna(tipo, dados);
+    emails = [
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br',
+      'csdamasceno@banestes.com.br'
+    ];
+  } else if(tipo === 'Transferência') {
+    subject = `Transferência Efetuada - Brinde ${dados.nome}`;
+    body = renderEmailFormalizacaoInterna(tipo, dados);
+    emails = [
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br',
+      'csdamasceno@banestes.com.br'
+    ];
+  } else if(tipo === 'Desconformidade') {
+    subject = `Divergência Recebida - Brinde ${dados.nome}`;
+    body = renderEmailDivergenciaCosup(dados);
+    emails = [
+      'enviocosup@banestes.com.br'
+    ];
+  } else if(tipo === 'Alinhamento') {
+    subject = `Recebimento Excedente - Brinde ${dados.nome}`;
+    body = renderEmailExcedente(dados);
+    emails = [
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br'
+    ];
+  } else if(tipo === 'Regularizacao') {
+    subject = `Regularização Manual`;
+    body = renderEmailRegularizacao(dados);
+    emails = [
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br'
+    ];
   } else {
-    subject=`Alerta sistema - Brinde ${dados.nome||''}`;
-    body=`Detalhes: ${JSON.stringify(dados)}`;
+    subject = `Alerta sistema - Brinde ${dados.nome||''}`;
+    body = `<pre>${JSON.stringify(dados)}</pre>`;
+    emails = [
+      'gadian@banestes.com.br'
+    ];
   }
+
   MailApp.sendEmail({
-    to: emails.join(","), subject: subject, htmlBody: body
+    to: emails.join(","),
+    subject: subject,
+    htmlBody: body
   });
+}
+
+// Templates de email (copie do seu exemplo e use string template)
+function renderEmailFormalizacaoInterna(tipo, dados) {
+  return `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #e4e8ee; border-radius: 8px; overflow: hidden;">
+  <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
+    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">RELATÓRIO DE MOVIMENTAÇÃO INTERNA</h2>
+  </div>
+  <div style="padding: 25px; line-height: 1.6;">
+    <p>Prezados,</p>
+    <p>Informamos que uma nova ação foi registrada no <strong>Gerenciador de Ativos - Núcleo Asset</strong> e requer sua ciência:</p>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Evento:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${tipo}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Item:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.nome}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Solicitante:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${getActiveUserEmail()}</td>
+      </tr>
+    </table>
+  </div>
+  <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 12px; color: #7a8fa6;">
+    Este é um e-mail automático do Sistema de Gestão de Brindes - Núcleo Asset.
+  </div>
+</div>`; // coloque o HTML fornecido no seu exemplo!
+}
+function renderEmailDivergenciaCosup(dados) {
+  return `<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 2px solid #fa4444; border-radius: 8px;">
+  <div style="background-color: #fa4444; color: #ffffff; padding: 15px;">
+    <h3 style="margin: 0;">ALERTA: Divergência de Recebimento</h3>
+  </div>
+  <div style="padding: 20px;">
+    <p>Prezada equipe <strong>COSUP</strong>,</p>
+    <p>Identificamos uma desconformidade entre a guia de remessa e o material físico recebido no Núcleo:</p>
+    <div style="background-color: #fff4f4; border-left: 4px solid #fa4444; padding: 15px; margin: 15px 0;">
+      <strong>Item:</strong> ${dados.nome}<br>
+      <strong>Qtd. Esperada:</strong> ${dados.qtdRequisitada}<br>
+      <strong>Qtd. Efetiva:</strong> ${dados.qtdRecebida}<br>
+      <br>
+      <strong>Incidente Registrado:</strong><br>
+      <i style="color: #555;">"${dados.incidente}"</i>
+    </div>
+    <p>Solicitamos a verificação no estoque central para alinhamento de saldos.</p>
+  </div>
+</div>`;
+}
+function renderEmailRegularizacao(dados) {
+  return `<div style="font-family: 'Segoe UI', sans-serif; color: #00284d; max-width: 600px; border: 1px solid #2684ff;">
+  <div style="background-color: #2684ff; color: #ffffff; padding: 15px;">
+    <h3 style="margin: 0;">Formalização de Ajuste Manual (Regularização)</h3>
+  </div>
+  <div style="padding: 20px;">
+    <p>Informamos que o item abaixo foi <strong>regularizado manualmente</strong> no sistema, alterando o status de <i>Desconformidade</i> para <i>Em Estoque</i> conforme acordado entre as partes.</p>
+    
+    <table style="width: 100%; background: #f0f7ff; border-radius: 4px; padding: 15px;">
+      <tr><td><strong>Brinde:</strong></td><td>${dados.nome} (ID: ${dados.id})</td></tr>
+      <tr><td><strong>Saldo Final Ajustado:</strong></td><td>${dados.novoSaldo} unidades</td></tr>
+      <tr><td><strong>Responsável:</strong></td><td>${getActiveUserEmail()}</td></tr>
+    </table>
+
+    <div style="margin-top: 20px; border-top: 1px dashed #2684ff; padding-top: 10px;">
+      <strong>Justificativa da Aceite/Troca:</strong><br>
+      <p style="background: #ffffff; border: 1px solid #e4e8ee; padding: 10px; border-radius: 4px;">
+        ${dados.justificativa}
+      </p>
+    </div>
+    <p style="font-size: 11px; color: #7a8fa6;">*Este registro substitui a pendência anterior e encerra o incidente de desconformidade para este lote.</p>
+  </div>
+</div>`;
+}
+function renderEmailExcedente(dados) {
+  return `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #36b37e; border-radius: 8px; overflow: hidden;">
+  <div style="background-color: #36b37e; color: #ffffff; padding: 20px; text-align: center;">
+    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">NOTIFICAÇÃO DE EXCEDENTE DE RECEBIMENTO</h2>
+  </div>
+  <div style="padding: 25px; line-height: 1.6;">
+    <p>Prezados,</p>
+    <p>Durante a conferência de entrada no <strong>Núcleo Asset</strong>, identificamos o recebimento de uma <strong>quantidade superior</strong> à solicitada originalmente.</p>
+    
+    <div style="background-color: #f0fff4; border: 1px solid #c6f6d5; padding: 15px; border-radius: 5px; margin: 15px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 5px; font-weight: bold;">Item:</td>
+          <td style="padding: 5px;">${dados.nome} (ID: ${dados.id})</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px; font-weight: bold;">Qtd. Solicitada:</td>
+          <td style="padding: 5px; color: #555;">${dados.qtdRequisitada}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px; font-weight: bold; color: #276749;">Qtd. Recebida:</td>
+          <td style="padding: 5px; font-weight: bold; color: #276749;">${dados.qtdRecebida}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px; font-weight: bold; color: #c53030;">Diferença (A maior):</td>
+          <td style="padding: 5px; font-weight: bold; color: #c53030;">+ ${dados.qtdRecebida - dados.qtdRequisitada}</td>
+        </tr>
+      </table>
+    </div>
+
+    <p><strong>Ação tomada:</strong> O saldo excedente foi incorporado ao estoque atual após validação física.</p>
+    
+    <p style="font-size: 13px; color: #666;">
+      <strong>Responsável pela conferência:</strong> ${getActiveUserEmail()}<br>
+      <strong>Data/Hora:</strong> ${new Date().toLocaleString('pt-BR')}
+    </p>
+  </div>
+  <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 12px; color: #7a8fa6;">
+    Este é um registro automático de conformidade do Sistema Núcleo Asset.
+  </div>
+</div>`;
+}
+function renderEmailPedidoDiretoria(dados) {
+  return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #003366; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
+      <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px; text-transform: uppercase;">Solicitação de Pedido - Diretoria</h2>
+    </div>
+    <div style="padding: 25px; line-height: 1.6; background-color: #ffffff;">
+      <p>Prezada equipe do <strong>Núcleo Asset</strong>,</p>
+      <p>Uma nova requisição prioritária foi registrada via portal da Diretoria. Favor organizar o atendimento conforme os detalhes abaixo:</p>
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 6px; margin: 20px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Item Solicitado:</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.nome}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Quantidade:</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.qtd} unidades</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Data Máxima:</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.data}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 0 4px 0; font-weight: bold; color: #003366;" colspan="2">Justificativa / Observação:</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; font-style: italic; color: #4a5568;" colspan="2">
+              "${dados.obs || 'Nenhuma observação informada.'}"
+            </td>
+          </tr>
+        </table>
+      </div>
+      <p style="font-size: 13px; color: #718096;">
+        <strong>Solicitante:</strong> ${getActiveUserEmail()} <br>
+        <strong>Sistema:</strong> Gerenciador de Ativos - Núcleo Asset
+      </p>
+    </div>
+    <div style="background-color: #f4f7f9; padding: 12px; text-align: center; font-size: 11px; color: #a0aec0; border-top: 1px solid #e2e8f0;">
+      Este é um e-mail automático de alta prioridade.
+    </div>
+  </div>`;
+}
+
+function enviarAlertaEstoque(status, dados) {
+  var subject = '';
+  var htmlBody = '';
+  if (status === 'minimo') {
+    subject = `AVISO: Estoque Mínimo Atingido - ${dados.nome}`;
+    htmlBody = renderEstoqueMinEmail(dados);
+  } else if (status === 'zero') {
+    subject = `ALERTA: Estoque Zerado - ${dados.nome}`;
+    htmlBody = renderEstoqueZeroEmail(dados);
+  }
+  var emails = [
+    'gadian@banestes.com.br',
+    'asmoreira@banestes.com.br',
+    'csdamasceno@banestes.com.br'
+  ];
+  MailApp.sendEmail({ to: emails.join(","), subject: subject, htmlBody: htmlBody });
+}
+function renderEstoqueMinEmail(dados) {
+  return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #ffd166; border-radius: 8px; overflow: hidden;">
+  <div style="background-color: #ffd166; color: #003366; padding: 20px; text-align: center;">
+    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">⚠️ ALERTA: ESTOQUE MÍNIMO ATINGIDO</h2>
+  </div>
+  <div style="padding: 25px; line-height: 1.6;">
+    <p>Prezados,</p>
+    <p>O item abaixo atingiu o <strong>nível crítico de segurança</strong> no estoque do Núcleo e necessita de reposição imediata:</p>
+    
+    <div style="background-color: #fffbeb; border-left: 4px solid #ffd166; padding: 15px; margin: 15px 0;">
+      <strong>Brinde:</strong> ${dados.nome} <br>
+      <strong>ID:</strong> ${dados.id} <br>
+      <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+      <strong>Saldo Atual:</strong> <span style="color: #d69e2e; font-weight: bold;">${dados.saldo_nucleo}</span><br>
+      <strong>Estoque Mínimo:</strong> ${dados.min}
+    </div>
+
+    <p>Sugerimos a abertura de uma nova <strong>Encomenda</strong> ou <strong>Transferência COSUP</strong> através do sistema para evitar a ruptura total.</p>
+  </div>
+  <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 11px; color: #7a8fa6;">
+    Gerenciado por Núcleo Asset - Sistema de Controle de Ativos.
+  </div>
+</div>`;
+}
+function renderEstoqueZeroEmail(dados) {
+  return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 2px solid #fa4444; border-radius: 8px; overflow: hidden;">
+  <div style="background-color: #fa4444; color: #ffffff; padding: 20px; text-align: center;">
+    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">🚨 CRÍTICO: ESTOQUE ZERADO</h2>
+  </div>
+  <div style="padding: 25px; line-height: 1.6;">
+    <p>Prezados,</p>
+    <p style="color: #fa4444; font-weight: bold;">Atenção: O item abaixo está com saldo zerado no estoque físico do Núcleo.</p>
+    
+    <div style="background-color: #fff5f5; border: 1px solid #feb2b2; padding: 15px; border-radius: 5px; margin: 15px 0;">
+      <table style="width: 100%;">
+        <tr>
+          <td><strong>Item:</strong></td>
+          <td>${dados.nome}</td>
+        </tr>
+        <tr>
+          <td><strong>ID:</strong></td>
+          <td>${dados.id}</td>
+        </tr>
+        <tr>
+          <td><strong>Status:</strong></td>
+          <td><span style="background: #fa4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px;">INDISPONÍVEL</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <p>Qualquer nova solicitação de saída para este brinde será negada até que a regularização ou nova entrada seja processada.</p>
+  </div>
+  <div style="border-top: 1px solid #eee; padding: 15px; font-size: 12px; color: #666; font-style: italic;">
+    Relatório gerado em: ${new Date().toLocaleString('pt-BR')}
+  </div>
+</div>`;
 }
 
 /** -------- SEGURANÇA -------- */
