@@ -119,12 +119,14 @@ function getAppData() {
       dashboard.push({
         id: String(id || ''),
         nome: String(nome || ''),
-        saldo_nucleo, saldo_cosup,
+        saldo_nucleo,
+        saldo_cosup,
+        total_estoque: (Number(saldo_nucleo) + Number(saldo_cosup)),
         min,
         prazo: String(prazo || ''),
         data_criacao: formatDateSafe(data_criacao),
-        status // <<-- aqui!
-      });
+        status
+      })
     }
 
     // Lê DB_Movimentacoes
