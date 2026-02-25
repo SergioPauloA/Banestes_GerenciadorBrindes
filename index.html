@@ -735,11 +735,58 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="modalRecebimento">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalRecebimento')">&times;</button>
+        <div class="modal-title">Confirmar Recebimento</div>
+        <form id="form-recebimento" autocomplete="off" onsubmit="submitRecebimento(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Qtd recebida:</label>
+              <input type="number" id="recebimento-qtd" min="1" required />
+              <input type="hidden" id="recebimento-data"/>
+              <input type="hidden" id="recebimento-id"/>
+              <input type="hidden" id="recebimento-nome"/>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Registrar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="spinner-overlay" id="loading-spinner">
       <div class="spinner"></div>
     </div>
   </main>
 <script>
+function openRecebimentoModal(data,id,nome,qtd_rq) {
+  closeAllModals();
+  document.getElementById('modalRecebimento').classList.add('active');
+  document.getElementById('recebimento-data').value = data;
+  document.getElementById('recebimento-id').value = id;
+  document.getElementById('recebimento-nome').value = nome;
+  document.getElementById('recebimento-qtd').focus();
+}
+
+// Submissão do recebimento (chama Apps Script confirmarRecebimento)
+function submitRecebimento(event) {
+  event.preventDefault();
+  showLoading();
+  let dados = {
+    data: document.getElementById('recebimento-data').value,
+    id: document.getElementById('recebimento-id').value,
+    nome: document.getElementById('recebimento-nome').value,
+    qtdRecebida: document.getElementById('recebimento-qtd').value
+  };
+  google.script.run
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao confirmar recebimento: ' + (err?.message || err)); })
+    .confirmarRecebimento(dados);
+}
+
 // --- Controle de Modais/Resets
 function openModal(modalId) {
   closeAllModals();
@@ -824,9 +871,10 @@ function renderAppData(data) {
   kpiS.innerHTML = '';
   // Apenas atribui kpis, não redeclare: (remove o let!!)
   const kpis = [
-    {title:'Estoque Baixo',value:kpisObj.estoqueBaixo||0,badge:'Alerta',class:'danger'},
-    {title:'Pedidos Pendentes',value:kpisObj.pedidosPendentes||0,badge:'Ação',class:'warning'},
-    {title:'Divergências',value:kpisObj.divergencias||0,badge:'Verificar',class:'info'}
+    {title:'Transferências', value:kpisObj.pedidosTransferencia || 0, badge:'Transferência', class:'info'},
+    {title:'Encomendas', value:kpisObj.pedidosEncomenda || 0, badge:'Encomenda', class:'warning'},
+    {title:'Desconformidades', value:kpisObj.pedidosDesconformidade || 0, badge:'Verificar', class:'danger'},
+    {title:'Estoque Baixo', value:kpisObj.estoqueBaixo || 0, badge:'Baixo', class:'danger'},
   ];
   kpis.forEach(k=>{
     let card = document.createElement('div');
@@ -858,10 +906,10 @@ function renderAppData(data) {
         </thead>
         <tbody>
           ${rows.map(d=>{
-            let status = '';
-            if(+d.saldo_nucleo===0) status='<span class="badge danger">Zero</span>';
-            else if(+d.saldo_nucleo<=+d.min) status='<span class="badge danger">Baixo</span>';
-            else status='<span class="badge sucesso">Ok</span>';
+          let status = '';
+          if(+d.saldo_nucleo === 0) status = '<span class="badge danger">Zero</span>'; // vermelho
+          else if(+d.saldo_nucleo <= +d.min) status = '<span class="badge warning">Baixo</span>'; // amarelo
+          else status = '<span class="badge sucesso">Ok</span>'; // verde
             let diverg = (+d.saldo_nucleo!==+d.saldo_cosup) ? '<span class="badge info">COSUP Diver.</span>' : '';
             return `<tr>
               <td>${d.nome||''}</td>
@@ -890,14 +938,25 @@ function renderMovimentos(movs) {
     return;
   }
   movs.forEach(m=>{
-    let badgeC = m.status==='Desconformidade'?'danger':
-      m.status==='Encomenda'?'warning':
-      m.status==='Transferência'?'info':'neutra';
-    let btnIncidente = '';
-    if(m.status==='Desconformidade') {
-      btnIncidente = `<button class="btn danger outline btn-sm" style="font-size:11px;padding:2px 8px;"
+    let badgeC =
+      m.status === 'Desconformidade' ? 'danger' :
+      m.status === 'Encomenda' ? 'warning' :
+      m.status === 'Transferência' ? 'info' : 'neutra';
+
+    let btnAcoes = '';
+
+    // Permite "receber" se status for Encomenda ou Transferência e não tiver quantidade recebida ainda
+    if ((m.status === 'Encomenda' || m.status === 'Transferência') && (!m.qtd_rc || Number(m.qtd_rc) === 0)) {
+      btnAcoes = `<button class="btn outline btn-sm" style="font-size:11px;padding:2px 10px;"
+        onclick="openRecebimentoModal('${m.data}','${m.id}','${m.nome}',${m.qtd_rq});">Receber</button>`;
+    }
+
+    // Botão incidente permanece para desconformidade, se desejar
+    if(m.status === 'Desconformidade') {
+      btnAcoes = `<button class="btn danger outline btn-sm" style="font-size:11px;padding:2px 8px;"
         onclick="openIncidenteModal('${m.data}','${m.id}','${m.nome}')">Incidente</button>`;
     }
+
     tbody.innerHTML += `
       <tr>
         <td>${m.data||''}</td>
@@ -909,7 +968,7 @@ function renderMovimentos(movs) {
         <td>${m.prazo||''}</td>
         <td>${m.incidente||''}</td>
         <td>${m.usuario||''}</td>
-        <td>${btnIncidente}</td>
+        <td>${btnAcoes}</td>
       </tr>
     `;
   });
@@ -941,14 +1000,13 @@ function renderCadastroTable(data) {
     return;
   }
   data.brindes.forEach(b=>{
-    let brinde = (data.dashboard||[]).find(x=>x.id===b.id);
     tbody.innerHTML += `
       <tr>
         <td>${b.id}</td>
         <td>${b.nome}</td>
-        <td>${brinde && brinde.min || 0}</td>
-        <td>${brinde && brinde.prazo || ''}</td>
-        <td>${brinde && brinde.data_criacao || ''}</td>
+        <td>${b.min}</td>
+        <td>${b.prazo}</td>
+        <td>${b.data_criacao}</td>
       </tr>
     `;
   });
