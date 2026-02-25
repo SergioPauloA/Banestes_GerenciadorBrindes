@@ -233,12 +233,11 @@
       margin-left: 2px;
       vertical-align: middle;
     }
-    /* cor texto branca para tudo menos warning */
     .badge.sucesso { background: var(--success); color: var(--white);}
     .badge.danger, .badge.erro { background: var(--danger); color: var(--white);}
+    .badge.warning { background: var(--warning); color: #502d00;}
     .badge.info { background: var(--info); color: var(--white);}
     .badge.neutra { background: var(--gray-dark); color: var(--white);}
-    .badge.warning { background: var(--warning); color: #502d00; } /* cor escura para texto amarelo */
 
     /* BOTÕES DE AÇÃO DAS ABAS */
     .aba-actions {
@@ -873,8 +872,8 @@ function renderAppData(data) {
   const kpis = [
     {title:'Transferências', value:kpisObj.pedidosTransferencia || 0, badge:'Transferência', class:'info'},
     {title:'Encomendas', value:kpisObj.pedidosEncomenda || 0, badge:'Encomenda', class:'warning'},
-    {title:'Desconformidades', value:kpisObj.pedidosDesconformidade || 0, badge:'Verificar', class:'danger'},
-    {title:'Estoque Baixo', value:kpisObj.estoqueBaixo || 0, badge:'Baixo', class:'danger'},
+    {title:'Desconformidades', value:kpisObj.divergencias || 0, badge:'Verificar', class:'danger'},
+    {title:'Estoque Baixo', value:kpisObj.estoqueBaixo||0, badge:'Baixo', class:'danger'},
   ];
   kpis.forEach(k=>{
     let card = document.createElement('div');
@@ -1004,9 +1003,9 @@ function renderCadastroTable(data) {
       <tr>
         <td>${b.id}</td>
         <td>${b.nome}</td>
-        <td>${b.min}</td>
-        <td>${b.prazo}</td>
-        <td>${b.data_criacao}</td>
+        <td>${b.min || 0}</td>
+        <td>${b.prazo || ''}</td>
+        <td>${b.data_criacao || ''}</td>
       </tr>
     `;
   });
