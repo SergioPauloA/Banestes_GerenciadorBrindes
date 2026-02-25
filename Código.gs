@@ -68,8 +68,8 @@ function getAppData() {
       brindes = cadastroRows.map(row => ({
         id: row[0],
         nome: row[1],
-        min: row[2] !== "" ? row[2] : "",
-        prazo: row[3] !== "" ? row[3] : "",
+        min: row[2],
+        prazo: row[3],
         data_criacao: formatDateSafe(row[4])
       }));
       Logger.log("Linhas em DB_Cadastro: " + brindes.length);
@@ -126,7 +126,7 @@ function getAppData() {
         prazo: String(prazo || ''),
         data_criacao: formatDateSafe(data_criacao),
         status
-      })
+      });
     }
 
     // Lê DB_Movimentacoes
@@ -163,11 +163,10 @@ function getAppData() {
     // KPIs NOVOS PARA OS QUATRO CARDS:
     // ================================
     // KPIs baseados em movimentos
-    let pedidosTransferencia = movimentos.filter(m => m.status === 'Transferência').length;      // "Transferência"
-    let pedidosEncomenda = movimentos.filter(m => m.status === 'Encomenda').length;             // "Encomenda"
-    let pedidosDesconformidade = movimentos.filter(m => m.status === 'Desconformidade').length; // "Desconformidade"
-    // KPIs baseado no dashboard
-    let estoqueBaixo = dashboard.filter(d => d.status === 'Baixo').length;  // "Estoque Baixo" (música do núcleo)
+    let estoqueBaixo = dashboard.filter(d => d.status === 'Baixo').length;
+    let pedidosEncomenda = movimentos.filter(m => m.status === 'Encomenda').length;
+    let pedidosTransferencia = movimentos.filter(m => m.status === 'Transferência').length;
+    let divergencias = movimentos.filter(m => m.status === 'Desconformidade').length;
 
     // Usuário (com fallback)
     let usuarioEmail = "";
@@ -185,10 +184,10 @@ function getAppData() {
       logs: logList,
       usuario: usuarioEmail,
       kpis: {
-        pedidosTransferencia,
+        estoqueBaixo,
         pedidosEncomenda,
-        pedidosDesconformidade,
-        estoqueBaixo
+        pedidosTransferencia,
+        divergencias
       },
       timestamp: Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss"),
       debug: {
@@ -307,10 +306,7 @@ function confirmarRecebimento(dados) {
   const vals = movs.getRange(2,1,movs.getLastRow()-1,10).getValues();
   let idx = -1;
   for(let i=0;i<vals.length;i++) {
-    if(vals[i][1]==dados.id && vals[i][0]==dados.data && vals[i][2]==dados.nome) {
-      idx=i+2;
-      break;
-    }
+    if(vals[i][1]==dados.id && vals[i][0]==dados.data && vals[i][2]==dados.nome) { idx=i+2; break;}
   }
   if(idx<0) throw new Error('Registro de movimentação não localizado.');
 
@@ -323,75 +319,29 @@ function confirmarRecebimento(dados) {
     statusReceb='Desconformidade';
     if(!incidenteMsg || incidenteMsg.trim()=='') throw new Error("É obrigatório descrever o incidente para recebimento com divergência.");
     if(!existeEmailDesconformidade(dados.nome, qtdRec, ss)) {
-      dispararEmail('Desconformidade', {
-        nome: dados.nome,
-        saldo_nucleo: qtdRec,
-        saldo_cosup: '-',
-        incidente: incidenteMsg,
-        qtdRequisitada: qtdReq,
-        qtdRecebida: qtdRec
-      });
+      dispararEmail('Desconformidade', {nome:dados.nome, saldo_nucleo:qtdRec, saldo_cosup:'-', incidente:incidenteMsg});
       registrarControleEmail(dados.id, 'Desconformidade', dados.nome+qtdRec, ss);
     }
   }
   else if(qtdRec>qtdReq) {
     statusReceb='Alinhamento';
-    dispararEmail('Alinhamento', {
-      nome: dados.nome,
-      qtdRequisitada: qtdReq,
-      qtdRecebida: qtdRec,
-      id: dados.id
-    });
+    dispararEmail('Alinhamento', {nome:dados.nome, qtdRequisitada: qtdReq, qtdRecebida: qtdRec});
   }
   else {
     statusReceb='Confirmado';
   }
-  movs.getRange(idx,6).setValue(qtdRec);       // Coluna qtd recebida
-  movs.getRange(idx,8).setValue(statusReceb);  // Coluna status
-  movs.getRange(idx,10).setValue(incidenteMsg);// Coluna incidente
+  movs.getRange(idx,6).setValue(qtdRec);
+  movs.getRange(idx,8).setValue(statusReceb);
+  movs.getRange(idx,10).setValue(incidenteMsg);
 
   let estoqueRows=estoqueN.getLastRow()>1?estoqueN.getRange(2,1,estoqueN.getLastRow()-1,3).getValues():[];
   let estIdx=estoqueRows.findIndex(row=>row[1]==dados.nome);
-  let saldoAtual = null;
   if(estIdx>=0){
-    saldoAtual = Number(estoqueRows[estIdx][2]) + qtdRec;
+    let saldoAtual = Number(estoqueRows[estIdx][2]) + qtdRec;
     estoqueN.getRange(estIdx+2,3).setValue(saldoAtual);
-
-    // === ETAPA PARA ENVIO DE ALERTAS DE ESTOQUE ===
-    // Pegue o valor mínimo para o produto na DB_Cadastro:
-    const cadastro = ss.getSheetByName('DB_Cadastro');
-    let minVal = 0;
-    if (cadastro && cadastro.getLastRow() > 1) {
-      let cadastroRows = cadastro.getRange(2, 1, cadastro.getLastRow() - 1, 5).getValues();
-      // Busque pelo ID ou nome:
-      let cRow = cadastroRows.find(row => String(row[0]) === String(dados.id));
-      if (cRow) {
-        minVal = Number(cRow[2]);
-      }
-    }
-    // Dispare o alerta SE saldo == 0 OU saldo <= minVal (mas só dispara de acordo com a lógica que preferir)
-    if(saldoAtual === 0) {
-      enviarAlertaEstoque('zero', {
-        id: dados.id,
-        nome: dados.nome,
-        saldo_nucleo: saldoAtual,
-        min: minVal
-      });
-    } else if(saldoAtual <= minVal) {
-      enviarAlertaEstoque('minimo', {
-        id: dados.id,
-        nome: dados.nome,
-        saldo_nucleo: saldoAtual,
-        min: minVal
-      });
-    }
-    // === FIM DOS ALERTAS DE ESTOQUE ===
   }
-  logAcao(
-    'Confirmação de recebimento',
-    emailUser,
-    `Brinde: ${dados.nome}, Qtd Req: ${qtdReq}, Qtd Rec: ${qtdRec}, Status: ${statusReceb}, Incidente: ${incidenteMsg}`
-  );
+  logAcao('Confirmação de recebimento', emailUser, 
+    `Brinde: ${dados.nome}, Qtd Req: ${qtdReq}, Qtd Rec: ${qtdRec}, Status: ${statusReceb}, Incidente: ${incidenteMsg}`);
   return {sucesso:true, mensagem:"Recebimento confirmado."};
 }
 
@@ -490,10 +440,9 @@ function registrarPedidoEspecial(dados) {
 
   // Disparar e-mail com o template correto
   let emails = [
-    'spandrade@banestes.com.br',
-    //'gadian@banestes.com.br',
-    //'asmoreira@banestes.com.br',
-    //'csdamasceno@banestes.com.br'
+    'gadian@banestes.com.br',
+    'asmoreira@banestes.com.br',
+    'csdamasceno@banestes.com.br'
   ];
   let subject = `Pedido Especial de Diretoria - Brinde ${dados.nome}`;
   let htmlBody = renderEmailPedidoDiretoria(dados);
@@ -530,49 +479,43 @@ function dispararEmail(tipo, dados) {
     subject = `Nova Encomenda - Brinde ${dados.nome}`;
     body = renderEmailFormalizacaoInterna(tipo, dados);
     emails = [
-      'spandrade@banestes.com.br',
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br',
-      //'csdamasceno@banestes.com.br'
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br',
+      'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Transferência') {
     subject = `Transferência Efetuada - Brinde ${dados.nome}`;
     body = renderEmailFormalizacaoInterna(tipo, dados);
     emails = [
-      'spandrade@banestes.com.br',
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br',
-      //'csdamasceno@banestes.com.br'
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br',
+      'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Desconformidade') {
     subject = `Divergência Recebida - Brinde ${dados.nome}`;
     body = renderEmailDivergenciaCosup(dados);
     emails = [
-      'spandrade@banestes.com.br',
       'enviocosup@banestes.com.br'
     ];
   } else if(tipo === 'Alinhamento') {
     subject = `Recebimento Excedente - Brinde ${dados.nome}`;
     body = renderEmailExcedente(dados);
     emails = [
-      'spandrade@banestes.com.br',
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br'
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br'
     ];
   } else if(tipo === 'Regularizacao') {
     subject = `Regularização Manual`;
     body = renderEmailRegularizacao(dados);
     emails = [
-      'spandrade@banestes.com.br',
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br'
+      'gadian@banestes.com.br',
+      'asmoreira@banestes.com.br'
     ];
   } else {
     subject = `Alerta sistema - Brinde ${dados.nome||''}`;
     body = `<pre>${JSON.stringify(dados)}</pre>`;
     emails = [
-      'spandrade@banestes.com.br',
-      //'gadian@banestes.com.br'
+      'gadian@banestes.com.br'
     ];
   }
 
@@ -698,48 +641,6 @@ function renderEmailExcedente(dados) {
   </div>
 </div>`;
 }
-function renderEmailPedidoDiretoria(dados) {
-  return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #003366; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-    <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
-      <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px; text-transform: uppercase;">Solicitação de Pedido - Diretoria</h2>
-    </div>
-    <div style="padding: 25px; line-height: 1.6; background-color: #ffffff;">
-      <p>Prezada equipe do <strong>Núcleo Asset</strong>,</p>
-      <p>Uma nova requisição prioritária foi registrada via portal da Diretoria. Favor organizar o atendimento conforme os detalhes abaixo:</p>
-      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 6px; margin: 20px 0;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Item Solicitado:</td>
-            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.nome}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Quantidade:</td>
-            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.qtd} unidades</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Data Máxima:</td>
-            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.data}</td>
-          </tr>
-          <tr>
-            <td style="padding: 12px 0 4px 0; font-weight: bold; color: #003366;" colspan="2">Justificativa / Observação:</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; font-style: italic; color: #4a5568;" colspan="2">
-              "${dados.obs || 'Nenhuma observação informada.'}"
-            </td>
-          </tr>
-        </table>
-      </div>
-      <p style="font-size: 13px; color: #718096;">
-        <strong>Solicitante:</strong> ${getActiveUserEmail()} <br>
-        <strong>Sistema:</strong> Gerenciador de Ativos - Núcleo Asset
-      </p>
-    </div>
-    <div style="background-color: #f4f7f9; padding: 12px; text-align: center; font-size: 11px; color: #a0aec0; border-top: 1px solid #e2e8f0;">
-      Este é um e-mail automático de alta prioridade.
-    </div>
-  </div>`;
-}
 
 function enviarAlertaEstoque(status, dados) {
   var subject = '';
@@ -752,10 +653,9 @@ function enviarAlertaEstoque(status, dados) {
     htmlBody = renderEstoqueZeroEmail(dados);
   }
   var emails = [
-    'spandrade@banestes.com.br',
-    //'gadian@banestes.com.br',
-    //'asmoreira@banestes.com.br',
-    //'csdamasceno@banestes.com.br'
+    'gadian@banestes.com.br',
+    'asmoreira@banestes.com.br',
+    'csdamasceno@banestes.com.br'
   ];
   MailApp.sendEmail({ to: emails.join(","), subject: subject, htmlBody: htmlBody });
 }
@@ -815,6 +715,49 @@ function renderEstoqueZeroEmail(dados) {
     Relatório gerado em: ${new Date().toLocaleString('pt-BR')}
   </div>
 </div>`;
+}
+
+function renderEmailPedidoDiretoria(dados) {
+  return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #003366; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
+      <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px; text-transform: uppercase;">Solicitação de Pedido - Diretoria</h2>
+    </div>
+    <div style="padding: 25px; line-height: 1.6; background-color: #ffffff;">
+      <p>Prezada equipe do <strong>Núcleo Asset</strong>,</p>
+      <p>Uma nova requisição prioritária foi registrada via portal da Diretoria. Favor organizar o atendimento conforme os detalhes abaixo:</p>
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 20px; border-radius: 6px; margin: 20px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Item Solicitado:</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.nome}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Quantidade:</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.qtd} unidades</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7; font-weight: bold; color: #003366;">Data Máxima:</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #edf2f7;">${dados.data}</td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 0 4px 0; font-weight: bold; color: #003366;" colspan="2">Justificativa / Observação:</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; font-style: italic; color: #4a5568;" colspan="2">
+              "${dados.obs || 'Nenhuma observação informada.'}"
+            </td>
+          </tr>
+        </table>
+      </div>
+      <p style="font-size: 13px; color: #718096;">
+        <strong>Solicitante:</strong> ${getActiveUserEmail()} <br>
+        <strong>Sistema:</strong> Gerenciador de Ativos - Núcleo Asset
+      </p>
+    </div>
+    <div style="background-color: #f4f7f9; padding: 12px; text-align: center; font-size: 11px; color: #a0aec0; border-top: 1px solid #e2e8f0;">
+      Este é um e-mail automático de alta prioridade.
+    </div>
+  </div>`;
 }
 
 /** -------- SEGURANÇA -------- */
