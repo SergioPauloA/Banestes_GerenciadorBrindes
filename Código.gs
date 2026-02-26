@@ -941,3 +941,100 @@ function debugEstrutura() {
   Logger.log("==== DADOS: " + JSON.stringify(resp));
   return resp;
 }
+
+function testarTodosEmailsSistema() {
+  var destinatario = 'spandrade@banestes.com.br';
+
+  // 1. Formalização Interna (Encomenda)
+  var dadosEncomenda = {
+    nome: "Brinde Teste Encomenda",
+    qtd: 10,
+    prazo: "7",
+    id: "999"
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Formalização Interna (Encomenda)',
+    htmlBody: renderEmailFormalizacaoInterna('Encomenda', dadosEncomenda)
+  });
+
+  // 2. Divergência à COSUP
+  var dadosDivergencia = {
+    nome: "Brinde Divergente",
+    qtdRequisitada: 15,
+    qtdRecebida: 10,
+    incidente: "Material faltante - avaria.",
+    id: "998"
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Notificação de Divergência à COSUP',
+    htmlBody: renderEmailDivergenciaCosup(dadosDivergencia)
+  });
+
+  // 3. Regularização Manual
+  var dadosRegularizacao = {
+    nome: "Brinde Regularização",
+    id: "997",
+    novoSaldo: 20,
+    justificativa: "Aceite por ajuste de inventário"
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Regularização Manual',
+    htmlBody: renderEmailRegularizacao(dadosRegularizacao)
+  });
+
+  // 4. Recebimento Excedente (A Mais)
+  var dadosExcedente = {
+    nome: "Brinde Excedente",
+    id: "996",
+    qtdRequisitada: 7,
+    qtdRecebida: 12
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Recebimento Excedente (A Mais)',
+    htmlBody: renderEmailExcedente(dadosExcedente)
+  });
+
+  // 5. Estoque Mínimo
+  var dadosMinimo = {
+    nome: "Brinde Minimo",
+    id: "995",
+    saldo_nucleo: 2,
+    min: 5
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Alerta de Estoque Mínimo',
+    htmlBody: renderEstoqueMinEmail(dadosMinimo)
+  });
+
+  // 6. Estoque Zerado
+  var dadosZero = {
+    nome: "Brinde Zerado",
+    id: "994"
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Alerta de Estoque Zerado',
+    htmlBody: renderEstoqueZeroEmail(dadosZero)
+  });
+
+  // 7. Pedido Especial Diretoria
+  var dadosDiretoria = {
+    nome: "Brinde Diretoria",
+    qtd: 25,
+    data: Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd"),
+    obs: "Urgente devido ao evento",
+    id: "993"
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Pedido Especial Diretoria',
+    htmlBody: renderEmailPedidoDiretoria(dadosDiretoria)
+  });
+
+  Logger.log('[TESTE] Todos os 7 modelos de e-mail enviados para ' + destinatario);
+}
