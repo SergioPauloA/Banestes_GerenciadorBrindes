@@ -406,7 +406,7 @@ function checarDivergencias() {
 }
 
 /** ------ REGULARIZAÇÃO MANUAL ------ */
-function regularizarManual(dados) {
+/*function regularizarManual(dados) {
   const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
   const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
@@ -448,10 +448,10 @@ function regularizarManual(dados) {
   });
   logAcao('Regularização manual', emailUser, `Brinde: ${dados.nome}, Novo saldo: ${dados.novoSaldo}, Just: ${dados.justificativa||''}`);
   return {sucesso:true, mensagem:"Regularização realizada."};
-}
+}*/
 
 /** ------ PEDIDO ESPECIAL (diretoria) ----- */
-function registrarPedidoEspecial(dados) {
+/*function registrarPedidoEspecial(dados) {
   const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
 
@@ -473,7 +473,7 @@ function registrarPedidoEspecial(dados) {
 
   logAcao('Pedido especial diretoria', getActiveUserEmail(), `Brinde: ${dados.nome}, Qtd: ${dados.qtd}, Obs: ${dados.obs||''}`);
   return {sucesso:true, mensagem:"Pedido especial enviado."};
-}
+}*/
 
 /** -------- LOG -------- */
 function logAcao(acao, usuario, justificativa) {
@@ -742,7 +742,7 @@ function renderEstoqueZeroEmail(dados) {
 </div>`;
 }
 
-function renderEmailPedidoDiretoria(dados) {
+/*function renderEmailPedidoDiretoria(dados) {
   return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #003366; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
     <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
       <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px; text-transform: uppercase;">Solicitação de Pedido - Diretoria</h2>
@@ -783,7 +783,7 @@ function renderEmailPedidoDiretoria(dados) {
       Este é um e-mail automático de alta prioridade.
     </div>
   </div>`;
-}
+}*/
 
 /** -------- SEGURANÇA -------- */
 function getUserEmail() {
@@ -1037,4 +1037,41 @@ function testarTodosEmailsSistema() {
   });
 
   Logger.log('[TESTE] Todos os 7 modelos de e-mail enviados para ' + destinatario);
+}
+
+function adicionarItensEstoqueLista() {
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
+  criarAbasBanco(ss);
+  const cadastro = ss.getSheetByName('DB_Cadastro');
+  const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
+
+  // Lista de itens [nome, qtd]
+  const itens = [
+    ["BOLSA TÉRMICA AZUL", 5],
+    ["BONÉ BORDADO AZUL", 120],
+    ["BONÉ BORDADO BRANCO", 20],
+    ["BONÉ TRUCKER", 0],
+    ["CADEIRA DE PRAIA RECLINÁVEL (NOVA)", 1],
+    ["CADEIRA DE PRAIA RECLINÁVEL (ANTIGA)", 1],
+    ["GARRAFA TÉRMICA ECOLÓGICA", 3],
+    ["GUARDA-SOL PEQUENO", 3],
+    ["GUARDA-SOL GRANDE", 3],
+    ["KIT CHURRASCO", 11],
+    ["MOCHILA TÉRMICA CINZA", 5],
+    ["MALA DE VIAGEM", 4],
+    ["KIT CANETA E LAPISEIRA", 78]
+  ];
+
+  itens.forEach(item => {
+    // Gera ID único (100~999 que não esteja em uso)
+    let used = cadastro.getLastRow() > 1 ? cadastro.getRange(2,1,cadastro.getLastRow()-1,1).getValues().map(r=>r[0]) : [];
+    let id;
+    do {
+      id = String(100 + Math.floor(Math.random() * 900));
+    } while (used.includes(id));
+
+    // Cadastro padrão: [ID, Nome, Estoque_Minimo (0), Prazo_Maximo (""), Data_Criacao]
+    cadastro.appendRow([id, item[0], 0, "", Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd")]);
+    estoqueN.appendRow([id, item[0], item[1]]);
+  });
 }
