@@ -412,6 +412,30 @@
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
     }
+
+    .filtro-status-dropdown {
+      background: #003366;     /* fundo igual ao botão */
+      color: #fff;             /* texto branco */
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 0 16px;
+      min-width: 160px;
+      height: 40px;
+      margin-left: 10px;
+      margin-right: 0;
+      cursor: pointer;
+      box-shadow: 0 1px 6px rgba(32,56,130,0.10);
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      transition: background 0.2s, color 0.2s;
+    }
+    .filtro-status-dropdown:focus {
+      border: 2px solid #2684ff;
+    }
     @keyframes spin {
       0% {transform: rotate(0);}
       100% {transform: rotate(360deg);}
@@ -452,17 +476,17 @@
       <span>Núcleo Asset</span>
     </div>
     <div class="sidebar-nav">
-      <button class="nav-btn active" onclick="openTab('dashboard')" id="tab-btn-dashboard">Dashboard</button>
-      <button class="nav-btn" onclick="openTab('movimentos')" id="tab-btn-movimentos">Movimentos</button>
-      <button class="nav-btn" onclick="openTab('pedidos')" id="tab-btn-pedidos">Pedidos Diretoria</button>
-      <button class="nav-btn" onclick="openTab('regularizacao')" id="tab-btn-regularizacao">Regularização</button>
-      <button class="nav-btn" onclick="openTab('cadastro')" id="tab-btn-cadastro">Cadastro</button>
-      <button class="nav-btn" onclick="openTab('logs')" id="tab-btn-logs">Logs</button>
+      <button class="nav-btn active" onclick="openTab('dashboard')" id="tab-btn-dashboard">Estoque</button>
+      <button class="nav-btn" onclick="openTab('movimentos')" id="tab-btn-movimentos">Movimentações</button>
+      <!-- <button class="nav-btn" onclick="openTab('pedidos')" id="tab-btn-pedidos">Pedidos Diretoria</button> -->
+      <!-- <button class="nav-btn" onclick="openTab('regularizacao')" id="tab-btn-regularizacao">Regularização</button> -->
+      <button class="nav-btn" onclick="openTab('cadastro')" id="tab-btn-cadastro">Cadastro de Brindes</button>
+      <button class="nav-btn" onclick="openTab('logs')" id="tab-btn-logs">Auditoria</button>
     </div>
   </nav>
   <header class="header">
     <span class="header-title">
-      Bem-vindo ao Gerenciador de Ativos - Núcleo Asset
+      Bem-vindo ao Gerenciador de Brindes - Núcleo Asset
     </span>
     <span class="header-user" id="user-email"></span>
   </header>
@@ -475,6 +499,15 @@
 
     <section class="content-section" id="section-movimentos">
       <div class="aba-actions">
+          <select id="filtro-status" onchange="filtrarMovimentosPorStatus()" class="filtro-status-dropdown">
+            <option value="">Todos os Status</option>
+            <option value="Encomenda">Encomenda</option>
+            <option value="Transferência">Transferência</option>
+            <option value="Desconformidade">Desconformidade</option>
+            <option value="Confirmado">Confirmado</option>
+            <option value="Em estoque">Em estoque</option>
+            <option value="Alinhamento">Alinhamento</option>
+          </select>
         <button class="btn primary" onclick="openModal('modalNovaEncomenda')">Nova Encomenda</button>
       </div>
       <div class="table-wrapper">
@@ -498,7 +531,7 @@
       </div>
     </section>
 
-    <section class="content-section" id="section-pedidos">
+<!--<section class="content-section" id="section-pedidos">
       <div class="aba-actions">
         <button class="btn primary" onclick="openModal('modalPedidoEspecial')">Novo Pedido</button>
       </div>
@@ -529,9 +562,9 @@
           <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
         </div>
       </form>
-    </section>
+    </section>-->
 
-    <section class="content-section" id="section-regularizacao">
+<!--<section class="content-section" id="section-regularizacao">
       <div class="aba-actions">
         <button class="btn primary" onclick="openModal('modalNovaTransferencia')">Nova Transferência</button>
       </div>
@@ -558,7 +591,7 @@
           <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
         </div>
       </form>
-    </section>
+    </section> -->
 
     <section class="content-section" id="section-cadastro">
       <div class="aba-actions">
@@ -607,9 +640,13 @@
               <label for="novo-nome">Nome</label>
               <input type="text" id="novo-nome" maxlength="55" required />
             </div>
-            <div class="form-group">
+      <!--  <div class="form-group">
               <label for="novo-id">ID (3 dígitos)</label>
               <input type="number" id="novo-id" min="100" max="999" required />
+            </div> -->
+            <div class="form-group">
+              <label for="novo-prazo">Prazo Máximo</label>
+              <input type="number" id="novo-prazo" min="1" required />
             </div>
             <div class="form-group">
               <label for="novo-min">Estoque Mínimo</label>
@@ -701,7 +738,7 @@
     </div>
 
     <!-- Pedido Especial modal overlay para botão da aba Pedidos -->
-    <div class="modal-overlay" id="modalPedidoEspecial">
+<!--<div class="modal-overlay" id="modalPedidoEspecial">
       <div class="modal">
         <button class="modal-close" onclick="closeModal('modalPedidoEspecial')">&times;</button>
         <div class="modal-title">Pedido Especial (Diretoria)</div>
@@ -732,7 +769,7 @@
           </div>
         </form>
       </div>
-    </div>
+    </div>-->
 
     <div class="modal-overlay" id="modalRecebimento">
       <div class="modal">
@@ -756,7 +793,7 @@
       </div>
     </div>
 
-    <div class="modal-overlay" id="modalRegularizaMovimento">
+<!--<div class="modal-overlay" id="modalRegularizaMovimento">
       <div class="modal">
         <button class="modal-close" onclick="closeModal('modalRegularizaMovimento')">&times;</button>
         <div class="modal-title">Regularização Manual</div>
@@ -782,13 +819,15 @@
           </div>
         </form>
       </div>
-    </div>
+    </div>-->
 
     <div class="spinner-overlay" id="loading-spinner">
       <div class="spinner"></div>
     </div>
   </main>
 <script>
+let _movimentosOriginais = []; // Garante variável global
+
 function submitRegularizaMovimento(event) {
   event.preventDefault();
   showLoading();
@@ -867,8 +906,8 @@ function hideLoading() { document.getElementById('loading-spinner').classList.re
 const TABS = [
   { id: 'dashboard', label: 'Dashboard'},
   { id: 'movimentos', label: 'Movimentos'},
-  { id: 'pedidos', label: 'Pedidos Diretoria'},
-  { id: 'regularizacao', label: 'Regularização'},
+//  { id: 'pedidos', label: 'Pedidos Diretoria'},
+//  { id: 'regularizacao', label: 'Regularização'},
   { id: 'cadastro', label: 'Cadastro'},
   { id: 'logs', label: 'Logs'}
 ];
@@ -922,10 +961,10 @@ function renderAppData(data) {
   kpiS.innerHTML = '';
   // Apenas atribui kpis, não redeclare: (remove o let!!)
   const kpis = [
-    {title:'Transferências', value:kpisObj.pedidosTransferencia || 0, badge:'Transferência', class:'info'},
-    {title:'Encomendas', value:kpisObj.pedidosEncomenda || 0, badge:'Encomenda', class:'warning'},
-    {title:'Desconformidades', value:kpisObj.divergencias || 0, badge:'Verificar', class:'danger'},
     {title:'Estoque Baixo', value:kpisObj.estoqueBaixo||0, badge:'Baixo', class:'danger'},
+    {title:'Encomendas', value:kpisObj.pedidosEncomenda || 0, badge:'Encomenda', class:'warning'},
+    {title:'Transferências', value:kpisObj.pedidosTransferencia || 0, badge:'Transferência', class:'info'},
+    {title:'Desconformidades', value:kpisObj.divergencias || 0, badge:'Verificar', class:'danger'},
   ];
   kpis.forEach(k=>{
     let card = document.createElement('div');
@@ -982,48 +1021,9 @@ function renderAppData(data) {
 }
 
 function renderMovimentos(movs) {
-  let tbody = document.getElementById('tbody-movimentos');
-  tbody.innerHTML = '';
-  if(!movs || movs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10"><em>Nenhum movimento encontrado.</em></td></tr>`;
-    return;
-  }
-  movs.forEach(m=>{
-    let badgeC =
-      m.status === 'Desconformidade' ? 'danger' :
-      m.status === 'Encomenda' ? 'warning' :
-      m.status === 'Transferência' ? 'info' : 'neutra';
-
-    let btnAcoes = '';
-
-    // Permite "receber" se status for Encomenda ou Transferência e não tiver quantidade recebida ainda
-    if ((m.status === 'Encomenda' || m.status === 'Transferência') && (!m.qtd_rc || Number(m.qtd_rc) === 0)) {
-      btnAcoes = `<button class="btn outline btn-sm" style="font-size:11px;padding:2px 10px;"
-        onclick="openRecebimentoModal('${m.data}','${m.id}','${m.nome}',${m.qtd_rq});">Receber</button>`;
-    }
-
-    // Botão incidente permanece para desconformidade, se desejar
-    if(m.status === 'Desconformidade') {
-      btnAcoes =
-        `<button class="btn primary btn-sm" style="font-size:11px;padding:2px 8px;"
-          onclick="openRegularizaModal('${m.data}','${m.id}','${m.nome}')">Regularizar</button>`;
-    }
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${m.data||''}</td>
-        <td>${m.nome||''}</td>
-        <td>${m.tipo||''}</td>
-        <td>${m.qtd_rq||''}</td>
-        <td>${m.qtd_rc||''}</td>
-        <td><span class="badge ${badgeC}">${m.status||''}</span></td>
-        <td>${m.prazo||''}</td>
-        <td>${m.incidente||''}</td>
-        <td>${m.usuario||''}</td>
-        <td>${btnAcoes}</td>
-      </tr>
-    `;
-  });
+  // Salva originais para re-filtragem
+  _movimentosOriginais = movs && Array.isArray(movs) ? movs.slice() : [];
+  filtrarMovimentosPorStatus();
 }
 
 function preencherDropdowns(data) {
@@ -1097,8 +1097,8 @@ function submitCadastroBrinde(event) {
   showLoading();
   let dados = {
     nome: document.getElementById('novo-nome').value,
-    id: document.getElementById('novo-id').value,
     minimo: document.getElementById('novo-min').value,
+    prazo: document.getElementById('novo-prazo').value,        // Adicione prazo!
     isNovo: true
   };
   google.script.run
@@ -1140,41 +1140,41 @@ function submitTransferencia(event) {
     .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar transferência: ' + (err?.message || err)); })
     .registrarTransferencia(dados);
 }
-function submitRegularizacao(event) {
-  event.preventDefault();
-  showLoading();
-  let sel = document.getElementById('reg-brinde');
-  let brindeId = sel.value;
-  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
-  let dados = {
-    id: brindeId,
-    nome: brindeNome,
-    novoSaldo: document.getElementById('reg-novo-saldo').value,
-    justificativa: document.getElementById('reg-just').value
-  };
-  google.script.run
-    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao regularizar: ' + (err?.message || err)); })
-    .regularizarManual(dados);
-}
-function submitPedidoEspecial(event) {
-  event.preventDefault();
-  showLoading();
-  let sel = document.getElementById('pedido-brinde');
-  let brindeId = sel.value;
-  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
-  let dados = {
-    id: brindeId,
-    nome: brindeNome,
-    qtd: document.getElementById('pedido-qtd').value,
-    data: document.getElementById('pedido-data').value,
-    obs: document.getElementById('pedido-obs').value
-  };
-  google.script.run
-    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar pedido especial: ' + (err?.message || err)); })
-    .registrarPedidoEspecial(dados);
-}
+//function submitRegularizacao(event) {
+//  event.preventDefault();
+//  showLoading();
+//  let sel = document.getElementById('reg-brinde');
+//  let brindeId = sel.value;
+//  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+//  let dados = {
+//    id: brindeId,
+//    nome: brindeNome,
+//    novoSaldo: document.getElementById('reg-novo-saldo').value,
+//    justificativa: document.getElementById('reg-just').value
+//  };
+//  google.script.run
+//    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+//    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao regularizar: ' + (err?.message || err)); })
+//    .regularizarManual(dados);
+//}
+//function submitPedidoEspecial(event) {
+//  event.preventDefault();
+//  showLoading();
+// let sel = document.getElementById('pedido-brinde');
+//  let brindeId = sel.value;
+//  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+//  let dados = {
+//    id: brindeId,
+//    nome: brindeNome,
+//    qtd: document.getElementById('pedido-qtd').value,
+//    data: document.getElementById('pedido-data').value,
+//    obs: document.getElementById('pedido-obs').value
+//  };
+//  google.script.run
+//    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
+//    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar pedido especial: ' + (err?.message || err)); })
+//    .registrarPedidoEspecial(dados);
+//}
 function submitIncidente(event) {
   event.preventDefault();
   showLoading();
@@ -1204,6 +1204,61 @@ window.onload = () => {
     if(e.key==='Escape'){ closeAllModals(); }
   });
 };
+
+function renderMovimentosFiltrados(lista) {
+  let tbody = document.getElementById('tbody-movimentos');
+  tbody.innerHTML = '';
+  if(!lista || lista.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="10"><em>Nenhum movimento encontrado.</em></td></tr>`;
+    return;
+  }
+  lista.forEach(m=>{
+    let badgeC =
+      m.status === 'Desconformidade' ? 'danger' :
+      m.status === 'Encomenda' ? 'warning' :
+      m.status === 'Transferência' ? 'info' :
+      m.status === 'Confirmado' ? 'sucesso' :
+      m.status === 'Alinhamento' ? 'info' :
+      m.status === 'Em estoque' ? 'sucesso' : 'neutra';
+
+    let btnAcoes = '';
+
+    if ((m.status === 'Encomenda' || m.status === 'Transferência') && (!m.qtd_rc || Number(m.qtd_rc) === 0)) {
+      btnAcoes = `<button class="btn outline btn-sm" style="font-size:11px;padding:2px 10px;"
+        onclick="openRecebimentoModal('${m.data}','${m.id}','${m.nome}',${m.qtd_rq});">Receber</button>`;
+    }
+
+    if (m.status === 'Desconformidade') {
+      btnAcoes =
+        `<button class="btn primary btn-sm" style="font-size:11px;padding:2px 8px;"
+          onclick="openRegularizaModal('${m.data}','${m.id}','${m.nome}')">Regularizar</button>`;
+    }
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${m.data||''}</td>
+        <td>${m.nome||''}</td>
+        <td>${m.tipo||''}</td>
+        <td>${m.qtd_rq||''}</td>
+        <td>${m.qtd_rc||''}</td>
+        <td><span class="badge ${badgeC}">${m.status||''}</span></td>
+        <td>${m.prazo||''}</td>
+        <td>${m.incidente||''}</td>
+        <td>${m.usuario||''}</td>
+        <td>${btnAcoes}</td>
+      </tr>
+    `;
+  });
+}
+
+function filtrarMovimentosPorStatus() {
+  const filtro = document.getElementById('filtro-status').value;
+  let lista = _movimentosOriginais || [];
+  if(filtro && filtro.trim() !== '') {
+    lista = lista.filter(m => (m.status || '').toLowerCase() === filtro.toLowerCase());
+  }
+  renderMovimentosFiltrados(lista);
+}
 </script>
 </body>
 </html>
