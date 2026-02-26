@@ -990,8 +990,8 @@ function renderAppData(data) {
             <th>Brinde</th>
             <th>Núcleo</th>
             <th>COSUP</th>
-            <th>Status</th>
             <th>Total em estoque</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
@@ -1005,8 +1005,8 @@ function renderAppData(data) {
               <td>${d.nome||''}</td>
               <td>${d.saldo_nucleo||0}</td>
               <td>${d.saldo_cosup||0}</td>
-              <td>${status}</td>
               <td>${+d.total_estoque || 0}</td>
+              <td>${status}</td>
             </tr>`
           }).join('')}
         </tbody>
