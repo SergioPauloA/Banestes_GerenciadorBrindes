@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Bem-vindo ao Gerenciador de Ativos - Núcleo Asset</title>
+  <title>Bem-vindo ao Gerenciador de Ativos - Brindes Asset</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
@@ -473,7 +473,7 @@
   <nav class="sidebar">
     <div class="sidebar-header">
       <div class="logo-placeholder">N</div>
-      <span>Núcleo Asset</span>
+      <span>Brindes Asset</span>
     </div>
     <div class="sidebar-nav">
       <button class="nav-btn active" onclick="openTab('dashboard')" id="tab-btn-dashboard">Estoque</button>
@@ -486,7 +486,7 @@
   </nav>
   <header class="header">
     <span class="header-title">
-      Bem-vindo ao Gerenciador de Brindes - Núcleo Asset
+      Bem-vindo ao Gerenciador de Brindes - Brindes Asset
     </span>
     <span class="header-user" id="user-email"></span>
   </header>
@@ -604,7 +604,6 @@
               <th>ID</th>
               <th>Nome</th>
               <th>Estoque Min.</th>
-              <th>Prazo Máx.</th>
               <th>Data Cadastro</th>
             </tr>
           </thead>
@@ -644,10 +643,10 @@
               <label for="novo-id">ID (3 dígitos)</label>
               <input type="number" id="novo-id" min="100" max="999" required />
             </div> -->
-            <div class="form-group">
+      <!--  <div class="form-group">
               <label for="novo-prazo">Prazo Máximo</label>
               <input type="number" id="novo-prazo" min="1" required />
-            </div>
+            </div> -->
             <div class="form-group">
               <label for="novo-min">Estoque Mínimo</label>
               <input type="number" id="novo-min" min="0" required />
@@ -1048,7 +1047,7 @@ function renderCadastroTable(data) {
   let tbody = document.getElementById('tbody-cadastro');
   tbody.innerHTML = '';
   if(!data.brindes || data.brindes.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5"><em>Nenhum item encontrado no cadastro.</em></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4"><em>Nenhum item encontrado no cadastro.</em></td></tr>`;
     return;
   }
   data.brindes.forEach(b=>{
@@ -1057,7 +1056,6 @@ function renderCadastroTable(data) {
         <td>${b.id}</td>
         <td>${b.nome}</td>
         <td>${b.min || 0}</td>
-        <td>${b.prazo || ''}</td>
         <td>${b.data_criacao || ''}</td>
       </tr>
     `;
@@ -1098,7 +1096,6 @@ function submitCadastroBrinde(event) {
   let dados = {
     nome: document.getElementById('novo-nome').value,
     minimo: document.getElementById('novo-min').value,
-    prazo: document.getElementById('novo-prazo').value,        // Adicione prazo!
     isNovo: true
   };
   google.script.run
