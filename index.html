@@ -756,11 +756,63 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="modalRegularizaMovimento">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalRegularizaMovimento')">&times;</button>
+        <div class="modal-title">Regularização Manual</div>
+        <form id="form-regulariza-mov" onsubmit="submitRegularizaMovimento(event)">
+          <input type="hidden" id="reg-id-mov">
+          <input type="hidden" id="reg-nome-mov">
+          <input type="hidden" id="reg-data-mov">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reg-novo-saldo">Novo Saldo</label>
+              <input type="number" id="reg-novo-saldo" min="0" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reg-just">Justificativa</label>
+              <input type="text" id="reg-just" maxlength="100"/>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Regularizar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="spinner-overlay" id="loading-spinner">
       <div class="spinner"></div>
     </div>
   </main>
 <script>
+function submitRegularizaMovimento(event) {
+  event.preventDefault();
+  showLoading();
+  let dados = {
+    id: document.getElementById('reg-id-mov').value,
+    nome: document.getElementById('reg-nome-mov').value,
+    data: document.getElementById('reg-data-mov').value,
+    novoSaldo: document.getElementById('reg-novo-saldo').value,
+    justificativa: document.getElementById('reg-just').value
+  };
+  google.script.run
+    .withSuccessHandler(resp => { hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err => { hideLoading(); alert('Erro ao regularizar: ' + (err?.message || err)); })
+    .regularizarManual(dados);
+}
+
+function openRegularizaModal(data, id, nome) {
+  closeAllModals();
+  document.getElementById('modalRegularizaMovimento').classList.add('active');
+  document.getElementById('reg-data-mov').value = data;
+  document.getElementById('reg-id-mov').value = id;
+  document.getElementById('reg-nome-mov').value = nome;
+}
+
 function openRecebimentoModal(data,id,nome,qtd_rq) {
   closeAllModals();
   document.getElementById('modalRecebimento').classList.add('active');
@@ -952,8 +1004,9 @@ function renderMovimentos(movs) {
 
     // Botão incidente permanece para desconformidade, se desejar
     if(m.status === 'Desconformidade') {
-      btnAcoes = `<button class="btn danger outline btn-sm" style="font-size:11px;padding:2px 8px;"
-        onclick="openIncidenteModal('${m.data}','${m.id}','${m.nome}')">Incidente</button>`;
+      btnAcoes =
+        `<button class="btn primary btn-sm" style="font-size:11px;padding:2px 8px;"
+          onclick="openRegularizaModal('${m.data}','${m.id}','${m.nome}')">Regularizar</button>`;
     }
 
     tbody.innerHTML += `
