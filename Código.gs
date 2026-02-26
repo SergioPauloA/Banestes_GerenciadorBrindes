@@ -415,7 +415,18 @@ function regularizarManual(dados) {
   let lastRow = estoqueN.getLastRow();
   let rows = lastRow>1 ? estoqueN.getRange(2,1,lastRow-1,3).getValues() : [];
   let idx = rows.findIndex(row=>row[1]==dados.nome && row[0]==dados.id);
-  if(idx>=0) estoqueN.getRange(idx+2,3).setValue(dados.novoSaldo);
+  if(idx>=0)
+    estoqueN.getRange(idx+2,3).setValue(dados.novoSaldo);
+
+  // Atualizar movimento específico para status "Em estoque"
+  let movRows = movs.getRange(2,1,movs.getLastRow()-1,10).getValues();
+  for(let i=0;i<movRows.length;i++){
+    if(movRows[i][1]==dados.id && movRows[i][2]==dados.nome && movRows[i][0]==dados.data){
+      movs.getRange(i+2,8).setValue('Em estoque'); // status
+      movs.getRange(i+2,6).setValue(dados.novoSaldo); // qtd recebida
+      break;
+    }
+  }
 
   movs.appendRow([
     Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss"),
@@ -429,6 +440,12 @@ function regularizarManual(dados) {
     emailUser,
     dados.justificativa||''
   ]);
+  dispararEmail('Regularizacao', {
+    id: dados.id,
+    nome: dados.nome,
+    novoSaldo: dados.novoSaldo,
+    justificativa: dados.justificativa
+  });
   logAcao('Regularização manual', emailUser, `Brinde: ${dados.nome}, Novo saldo: ${dados.novoSaldo}, Just: ${dados.justificativa||''}`);
   return {sucesso:true, mensagem:"Regularização realizada."};
 }
@@ -440,9 +457,10 @@ function registrarPedidoEspecial(dados) {
 
   // Disparar e-mail com o template correto
   let emails = [
-    'gadian@banestes.com.br',
-    'asmoreira@banestes.com.br',
-    'csdamasceno@banestes.com.br'
+    'spandrade@banestes.com.br',
+    //'gadian@banestes.com.br',
+    //'asmoreira@banestes.com.br',
+    //'csdamasceno@banestes.com.br'
   ];
   let subject = `Pedido Especial de Diretoria - Brinde ${dados.nome}`;
   let htmlBody = renderEmailPedidoDiretoria(dados);
@@ -479,43 +497,49 @@ function dispararEmail(tipo, dados) {
     subject = `Nova Encomenda - Brinde ${dados.nome}`;
     body = renderEmailFormalizacaoInterna(tipo, dados);
     emails = [
-      'gadian@banestes.com.br',
-      'asmoreira@banestes.com.br',
-      'csdamasceno@banestes.com.br'
+      'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
+      //'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Transferência') {
     subject = `Transferência Efetuada - Brinde ${dados.nome}`;
     body = renderEmailFormalizacaoInterna(tipo, dados);
     emails = [
-      'gadian@banestes.com.br',
-      'asmoreira@banestes.com.br',
-      'csdamasceno@banestes.com.br'
+      'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
+      //'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Desconformidade') {
     subject = `Divergência Recebida - Brinde ${dados.nome}`;
     body = renderEmailDivergenciaCosup(dados);
     emails = [
-      'enviocosup@banestes.com.br'
+      'spandrade@banestes.com.br',
+      //'enviocosup@banestes.com.br'
     ];
   } else if(tipo === 'Alinhamento') {
     subject = `Recebimento Excedente - Brinde ${dados.nome}`;
     body = renderEmailExcedente(dados);
     emails = [
-      'gadian@banestes.com.br',
-      'asmoreira@banestes.com.br'
+      'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br'
     ];
   } else if(tipo === 'Regularizacao') {
     subject = `Regularização Manual`;
     body = renderEmailRegularizacao(dados);
     emails = [
-      'gadian@banestes.com.br',
-      'asmoreira@banestes.com.br'
+      'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br'
     ];
   } else {
     subject = `Alerta sistema - Brinde ${dados.nome||''}`;
     body = `<pre>${JSON.stringify(dados)}</pre>`;
     emails = [
-      'gadian@banestes.com.br'
+      'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br'
     ];
   }
 
@@ -653,9 +677,10 @@ function enviarAlertaEstoque(status, dados) {
     htmlBody = renderEstoqueZeroEmail(dados);
   }
   var emails = [
-    'gadian@banestes.com.br',
-    'asmoreira@banestes.com.br',
-    'csdamasceno@banestes.com.br'
+    'spandrade@banestes.com.br',
+    //'gadian@banestes.com.br',
+    //'asmoreira@banestes.com.br',
+    //'csdamasceno@banestes.com.br'
   ];
   MailApp.sendEmail({ to: emails.join(","), subject: subject, htmlBody: htmlBody });
 }
