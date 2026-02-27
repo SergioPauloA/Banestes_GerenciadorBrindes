@@ -79,49 +79,49 @@ function getAppData() {
     let estoqueRows = [];
     let estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
     if (estoqueN && estoqueN.getLastRow() > 1) {
-      estoqueRows = estoqueN.getRange(2, 1, estoqueN.getLastRow() - 1, 3).getValues();
-      Logger.log("Linhas em DB_Estoque_Nucleo: " + estoqueRows.length);
+      estoqueRows = estoqueN.getRange(2, 1, estoqueN.getLastRow() - 1, 3).getValues().map(row => ({
+        id: String(row[0]),
+        nome: String(row[1]),
+        saldo_nucleo: Number(row[2]) || 0
+      }));
     }
 
-    // Lê Espelho (COSUP)
+    // Lê Espelho (COSUP) COM ID
     let cosupRows = [];
     let espelho = ss.getSheetByName('Espelho');
     if (espelho && espelho.getLastRow() > 2) {
-      cosupRows = espelho.getRange(3, 1, espelho.getLastRow() - 2, 2).getValues()
-        .map(row => ({
-          nome: String(row[0] || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
-          cosup: Number(row[1]) || 0
-        }));
+      // ATENÇÃO: Colunas: ITEM(B), QUANT COSUP(C), ID(D) => indexes: 0(B), 1(C), 2(D)
+      cosupRows = espelho.getRange(3, 1, espelho.getLastRow() - 2, 3).getValues().map(row => ({
+        nome: String(row[0] || '').trim(),
+        cosup: Number(row[1]) || 0,
+        id: String(row[2] || '').trim()
+      })).filter(r => r.id); // Só pega linhas com ID preenchido
     }
 
-    // DASHBOARD (comparativo)
+    // DASHBOARD (comparativo unificado por ID)
     let dashboard = [];
-    for (let cad of cadastroRows) {
-      const id = cad[0], nome = cad[1], min = Number(cad[2]), prazo = cad[3], data_criacao = cad[4];
-      const buscaNome = String(nome || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-
-      // Saldo núcleo e COSUP
-      const saldo_nucleo = (() => {
-        let found = estoqueRows.find(row => String(row[0]) == String(id));
-        return found ? Number(found[2]) : 0;
-      })();
-      const saldo_cosup = (() => {
-        let found = cosupRows.find(row => row.nome == buscaNome);
-        return found ? Number(found.cosup) : 0;
-      })();
+    for (let est of estoqueRows) {
+      // Procura COSUP com o mesmo id
+      const cosup = cosupRows.find(c => c.id === est.id);
+      const saldo_cosup = cosup ? cosup.cosup : 0;
+      // Ache info de cadastro/limite minimo, se quiser (opcional)
+      const cad = cadastroRows.find(row => String(row[0]) === est.id) || [];
+      const min = Number(cad[2]) || 0;
+      const prazo = cad[3] || '';
+      const data_criacao = cad[4] || '';
 
       // STATUS do estoque núcleo
       let status = '';
-      if (saldo_nucleo === 0) status = 'Zero';
-      else if (saldo_nucleo <= min) status = 'Baixo';
+      if (est.saldo_nucleo === 0) status = 'Zero';
+      else if (est.saldo_nucleo <= min) status = 'Baixo';
       else status = 'Ok';
 
       dashboard.push({
-        id: String(id || ''),
-        nome: String(nome || ''),
-        saldo_nucleo,
+        id: est.id,
+        nome: est.nome,
+        saldo_nucleo: est.saldo_nucleo,
         saldo_cosup,
-        total_estoque: (Number(saldo_nucleo) + Number(saldo_cosup)),
+        total_estoque: est.saldo_nucleo + saldo_cosup,
         min,
         prazo: String(prazo || ''),
         data_criacao: formatDateSafe(data_criacao),
