@@ -498,6 +498,7 @@ function dispararEmail(tipo, dados) {
     body = renderEmailFormalizacaoInterna(tipo, dados);
     emails = [
       'spandrade@banestes.com.br',
+      'csdamasceno@banestes.com.br'
       //'gadian@banestes.com.br',
       //'asmoreira@banestes.com.br',
       //'csdamasceno@banestes.com.br'
@@ -507,6 +508,7 @@ function dispararEmail(tipo, dados) {
     body = renderEmailFormalizacaoInterna(tipo, dados);
     emails = [
       'spandrade@banestes.com.br',
+      'csdamasceno@banestes.com.br'
       //'gadian@banestes.com.br',
       //'asmoreira@banestes.com.br',
       //'csdamasceno@banestes.com.br'
@@ -516,6 +518,7 @@ function dispararEmail(tipo, dados) {
     body = renderEmailDivergenciaCosup(dados);
     emails = [
       'spandrade@banestes.com.br',
+      'csdamasceno@banestes.com.br'
       //'enviocosup@banestes.com.br'
     ];
   } else if(tipo === 'Alinhamento') {
@@ -523,6 +526,7 @@ function dispararEmail(tipo, dados) {
     body = renderEmailExcedente(dados);
     emails = [
       'spandrade@banestes.com.br',
+      'csdamasceno@banestes.com.br'
       //'gadian@banestes.com.br',
       //'asmoreira@banestes.com.br'
     ];
@@ -531,6 +535,7 @@ function dispararEmail(tipo, dados) {
     body = renderEmailRegularizacao(dados);
     emails = [
       'spandrade@banestes.com.br',
+      'csdamasceno@banestes.com.br'
       //'gadian@banestes.com.br',
       //'asmoreira@banestes.com.br'
     ];
@@ -539,6 +544,7 @@ function dispararEmail(tipo, dados) {
     body = `<pre>${JSON.stringify(dados)}</pre>`;
     emails = [
       'spandrade@banestes.com.br',
+      'csdamasceno@banestes.com.br'
       //'gadian@banestes.com.br'
     ];
   }
@@ -678,6 +684,7 @@ function enviarAlertaEstoque(status, dados) {
   }
   var emails = [
     'spandrade@banestes.com.br',
+    'csdamasceno@banestes.com.br'
     //'gadian@banestes.com.br',
     //'asmoreira@banestes.com.br',
     //'csdamasceno@banestes.com.br'
