@@ -478,6 +478,7 @@
     <div class="sidebar-nav">
       <button class="nav-btn active" onclick="openTab('dashboard')" id="tab-btn-dashboard">Estoque</button>
       <button class="nav-btn" onclick="openTab('movimentos')" id="tab-btn-movimentos">Movimentações</button>
+      <button class="nav-btn" onclick="openTab('saida')" id="tab-btn-saida">Saída de Item</button>
       <!-- <button class="nav-btn" onclick="openTab('pedidos')" id="tab-btn-pedidos">Pedidos Diretoria</button> -->
       <!-- <button class="nav-btn" onclick="openTab('regularizacao')" id="tab-btn-regularizacao">Regularização</button> -->
       <button class="nav-btn" onclick="openTab('cadastro')" id="tab-btn-cadastro">Cadastro de Brindes</button>
@@ -527,6 +528,26 @@
             </tr>
           </thead>
           <tbody id="tbody-movimentos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="content-section" id="section-saida">
+      <div class="aba-actions">
+        <button class="btn primary" onclick="openModal('modalNovaSaida')">Nova Saída</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="table-saida">
+          <thead>
+            <tr>
+              <th>Data/Hora</th>
+              <th>Brinde</th>
+              <th>Quantidade</th>
+              <th>Retirante</th>
+              <th>Operador</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-saida"></tbody>
         </table>
       </div>
     </section>
@@ -708,6 +729,35 @@
           </div>
           <div class="form-actions">
             <button type="submit" class="btn primary">Salvar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalNovaSaida">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalNovaSaida')">&times;</button>
+        <div class="modal-title">Nova Saída de Item</div>
+        <form id="form-saida" autocomplete="off" onsubmit="submitSaida(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="saida-brinde">Brinde</label>
+              <select id="saida-brinde" required onchange="atualizarEstoqueSaida()"></select>
+            </div>
+            <div class="form-group">
+              <label for="saida-qtd">Quantidade <span id="saida-estoque-hint" style="font-size:11px;color:var(--gray-dark);font-weight:400;"></span></label>
+              <input type="number" id="saida-qtd" min="1" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="saida-retirante">Nome do Retirante</label>
+              <input type="text" id="saida-retirante" maxlength="80" required />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Registrar Saída</button>
             <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
           </div>
         </form>
@@ -905,6 +955,7 @@ function hideLoading() { document.getElementById('loading-spinner').classList.re
 const TABS = [
   { id: 'dashboard', label: 'Dashboard'},
   { id: 'movimentos', label: 'Movimentos'},
+  { id: 'saida', label: 'Saída de Item'},
 //  { id: 'pedidos', label: 'Pedidos Diretoria'},
 //  { id: 'regularizacao', label: 'Regularização'},
   { id: 'cadastro', label: 'Cadastro'},
@@ -1017,6 +1068,7 @@ function renderAppData(data) {
   preencherDropdowns(data);
   renderCadastroTable(data);
   renderLogsTable(data);
+  renderSaidasTable(movimentos);
 }
 
 function renderMovimentos(movs) {
@@ -1027,7 +1079,11 @@ function renderMovimentos(movs) {
 
 function preencherDropdowns(data) {
   let dropdowns = [
-    'encomenda-brinde','transf-brinde','pedido-brinde','reg-brinde'
+    'encomenda-brinde',
+    'transf-brinde',
+    'pedido-brinde',
+    'reg-brinde',
+    'saida-brinde'
   ];
   dropdowns.forEach(id=>{
     let el = document.getElementById(id);
@@ -1185,6 +1241,82 @@ function submitIncidente(event) {
     .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
     .withFailureHandler(err=>{ hideLoading(); alert('Erro ao confirmar recebimento: ' + (err?.message || err)); })
     .confirmarRecebimento(dados);
+}
+
+function renderSaidasTable(movimentos) {
+  let tbody = document.getElementById('tbody-saida');
+  tbody.innerHTML = '';
+  let saidas = (movimentos || []).filter(m => m.tipo === 'Saída');
+  if (saidas.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5"><em>Nenhuma saída registrada.</em></td></tr>`;
+    return;
+  }
+  // For 'Saída' records, the 'incidente' field stores the retirante name
+  saidas.slice().reverse().forEach(m => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${m.data || ''}</td>
+        <td>${m.nome || ''}</td>
+        <td>${m.qtd_rq || ''}</td>
+        <td>${m.incidente || ''}</td>
+        <td>${m.usuario || ''}</td>
+      </tr>
+    `;
+  });
+}
+
+function atualizarEstoqueSaida() {
+  let sel = document.getElementById('saida-brinde');
+  let id = sel.value;
+  let hint = document.getElementById('saida-estoque-hint');
+  let qtdInput = document.getElementById('saida-qtd');
+  if (!id || !_appdata || !_appdata.dashboard) {
+    hint.textContent = '';
+    qtdInput.removeAttribute('max');
+    return;
+  }
+  let item = _appdata.dashboard.find(d => String(d.id) === String(id));
+  if (item) {
+    hint.textContent = `(Disponível: ${item.saldo_nucleo})`;
+    qtdInput.setAttribute('max', item.saldo_nucleo);
+    qtdInput.value = '';
+  } else {
+    hint.textContent = '';
+    qtdInput.removeAttribute('max');
+  }
+}
+
+function submitSaida(event) {
+  event.preventDefault();
+  let sel = document.getElementById('saida-brinde');
+  let brindeId = sel.value;
+  let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+  let qtd = Number(document.getElementById('saida-qtd').value);
+  let retirante = document.getElementById('saida-retirante').value.trim();
+
+  if (!brindeId) { alert('Selecione um brinde.'); return; }
+  if (!retirante) { alert('Informe o nome do retirante.'); return; }
+
+  // Validate against local stock data
+  if (_appdata && _appdata.dashboard) {
+    let item = _appdata.dashboard.find(d => String(d.id) === String(brindeId));
+    if (item && qtd > item.saldo_nucleo) {
+      alert(`Quantidade solicitada (${qtd}) excede o estoque disponível (${item.saldo_nucleo}).`);
+      return;
+    }
+  }
+
+  showLoading();
+  let dados = {
+    id: brindeId,
+    nome: brindeNome,
+    qtd: qtd,
+    retirante: retirante
+  };
+  google.script.run
+    .withSuccessHandler(resp => { hideLoading(); closeAllModals(); atualizarApp(); })
+    .withFailureHandler(err => { hideLoading(); alert('Erro ao registrar saída: ' + (err?.message || err)); })
+    .registrarSaida(dados);
 }
 
 // --- SPA INIT

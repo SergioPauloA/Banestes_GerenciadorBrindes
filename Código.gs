@@ -319,13 +319,13 @@ function confirmarRecebimento(dados) {
     statusReceb='Desconformidade';
     if(!incidenteMsg || incidenteMsg.trim()=='') throw new Error("É obrigatório descrever o incidente para recebimento com divergência.");
     if(!existeEmailDesconformidade(dados.nome, qtdRec, ss)) {
-      dispararEmail('Desconformidade', {nome:dados.nome, saldo_nucleo:qtdRec, saldo_cosup:'-', incidente:incidenteMsg});
+      dispararEmail('Desconformidade', {nome:dados.nome, qtdRequisitada:qtdReq, qtdRecebida:qtdRec, incidente:incidenteMsg});
       registrarControleEmail(dados.id, 'Desconformidade', dados.nome+qtdRec, ss);
     }
   }
   else if(qtdRec>qtdReq) {
     statusReceb='Alinhamento';
-    dispararEmail('Alinhamento', {nome:dados.nome, qtdRequisitada: qtdReq, qtdRecebida: qtdRec});
+    dispararEmail('Alinhamento', {id:dados.id, nome:dados.nome, qtdRequisitada: qtdReq, qtdRecebida: qtdRec});
   }
   else {
     statusReceb='Confirmado';
@@ -360,6 +360,59 @@ function registrarControleEmail(item_id, tipo, chave, ss) {
     Utilities.formatDate(new Date(),"GMT-3","yyyy-MM-dd HH:mm:ss"),
     item_id, tipo, hash
   ]);
+}
+
+/** ------ SAÍDA DE ITEM DO ESTOQUE NÚCLEO ------ */
+function registrarSaida(dados) {
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
+  criarAbasBanco(ss);
+  const movs = ss.getSheetByName('DB_Movimentacoes');
+  const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
+  let emailUser = getActiveUserEmail();
+
+  if (!dados.retirante || String(dados.retirante).trim() === '') {
+    throw new Error('O nome do retirante é obrigatório.');
+  }
+
+  let estoqueRows = estoqueN.getLastRow() > 1
+    ? estoqueN.getRange(2, 1, estoqueN.getLastRow() - 1, 3).getValues()
+    : [];
+  let estIdx = estoqueRows.findIndex(row => String(row[0]) === String(dados.id));
+  if (estIdx < 0) throw new Error('Item não encontrado no estoque núcleo.');
+
+  let saldoAtual = Number(estoqueRows[estIdx][2]) || 0;
+  let qtdSaida = Number(dados.qtd);
+  if (qtdSaida <= 0) throw new Error('Quantidade deve ser maior que zero.');
+  if (qtdSaida > saldoAtual) throw new Error(`Quantidade solicitada (${qtdSaida}) excede o estoque disponível (${saldoAtual}).`);
+
+  let dataHora = Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss");
+  movs.appendRow([
+    dataHora,
+    dados.id,
+    dados.nome,
+    'Saída',
+    qtdSaida,
+    qtdSaida,
+    '',
+    'Saída',
+    emailUser,
+    dados.retirante  // Para registros do tipo 'Saída', o campo Incidente armazena o nome do retirante
+  ]);
+
+  estoqueN.getRange(estIdx + 2, 3).setValue(saldoAtual - qtdSaida);
+
+  logAcao('Saída de item', emailUser,
+    `Brinde: ${dados.nome}, Qtd: ${qtdSaida}, Retirante: ${dados.retirante}`);
+
+  dispararEmail('Saída', {
+    nome: dados.nome,
+    qtd: qtdSaida,
+    retirante: dados.retirante,
+    dataHora: dataHora,
+    usuario: emailUser
+  });
+
+  return { sucesso: true, mensagem: 'Saída registrada com sucesso.' };
 }
 
 /** ---- Sincronização e Divergência ---- */
@@ -539,6 +592,12 @@ function dispararEmail(tipo, dados) {
       //'gadian@banestes.com.br',
       //'asmoreira@banestes.com.br'
     ];
+  } else if(tipo === 'Saída') {
+    subject = `Retirada de Item - ${dados.nome}`;
+    body = renderEmailSaida(dados);
+    emails = [
+      'csdamasceno@banestes.com.br'
+    ];
   } else {
     subject = `Alerta sistema - Brinde ${dados.nome||''}`;
     body = `<pre>${JSON.stringify(dados)}</pre>`;
@@ -575,6 +634,14 @@ function renderEmailFormalizacaoInterna(tipo, dados) {
         <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.nome}</td>
       </tr>
       <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Quantidade:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.qtd || '-'}</td>
+      </tr>
+      ${dados.prazo ? `<tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Prazo:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.prazo} dias</td>
+      </tr>` : ''}
+      <tr>
         <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Solicitante:</td>
         <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${getActiveUserEmail()}</td>
       </tr>
@@ -586,6 +653,8 @@ function renderEmailFormalizacaoInterna(tipo, dados) {
 </div>`; // coloque o HTML fornecido no seu exemplo!
 }
 function renderEmailDivergenciaCosup(dados) {
+  const qtdEsperada = dados.qtdRequisitada !== undefined ? dados.qtdRequisitada : dados.saldo_cosup;
+  const qtdEfetiva = dados.qtdRecebida !== undefined ? dados.qtdRecebida : dados.saldo_nucleo;
   return `<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 2px solid #fa4444; border-radius: 8px;">
   <div style="background-color: #fa4444; color: #ffffff; padding: 15px;">
     <h3 style="margin: 0;">ALERTA: Divergência de Recebimento</h3>
@@ -595,11 +664,9 @@ function renderEmailDivergenciaCosup(dados) {
     <p>Identificamos uma desconformidade entre a guia de remessa e o material físico recebido no Núcleo:</p>
     <div style="background-color: #fff4f4; border-left: 4px solid #fa4444; padding: 15px; margin: 15px 0;">
       <strong>Item:</strong> ${dados.nome}<br>
-      <strong>Qtd. Esperada:</strong> ${dados.qtdRequisitada}<br>
-      <strong>Qtd. Efetiva:</strong> ${dados.qtdRecebida}<br>
-      <br>
-      <strong>Incidente Registrado:</strong><br>
-      <i style="color: #555;">"${dados.incidente}"</i>
+      <strong>Qtd. Esperada:</strong> ${qtdEsperada}<br>
+      <strong>Qtd. Efetiva:</strong> ${qtdEfetiva}<br>
+      ${dados.incidente ? `<br><strong>Incidente Registrado:</strong><br><i style="color: #555;">"${dados.incidente}"</i>` : ''}
     </div>
     <p>Solicitamos a verificação no estoque central para alinhamento de saldos.</p>
   </div>
@@ -642,7 +709,7 @@ function renderEmailExcedente(dados) {
       <table style="width: 100%; border-collapse: collapse;">
         <tr>
           <td style="padding: 5px; font-weight: bold;">Item:</td>
-          <td style="padding: 5px;">${dados.nome} (ID: ${dados.id})</td>
+          <td style="padding: 5px;">${dados.nome}${dados.id ? ' (ID: ' + dados.id + ')' : ''}</td>
         </tr>
         <tr>
           <td style="padding: 5px; font-weight: bold;">Qtd. Solicitada:</td>
@@ -668,6 +735,43 @@ function renderEmailExcedente(dados) {
   </div>
   <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 12px; color: #7a8fa6;">
     Este é um registro automático de conformidade do Sistema Núcleo Asset.
+  </div>
+</div>`;
+}
+
+function renderEmailSaida(dados) {
+  return `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #e4e8ee; border-radius: 8px; overflow: hidden;">
+  <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
+    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">REGISTRO DE SAÍDA DE ITEM</h2>
+  </div>
+  <div style="padding: 25px; line-height: 1.6;">
+    <p>Prezado(a),</p>
+    <p>Informamos que foi realizada uma <strong>retirada de item</strong> no <strong>Gerenciador de Ativos - Núcleo Asset</strong>:</p>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Item:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.nome}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Quantidade Retirada:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.qtd}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Retirante:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.retirante}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Data/Hora:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.dataHora}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Operador:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.usuario}</td>
+      </tr>
+    </table>
+  </div>
+  <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 12px; color: #7a8fa6;">
+    Este é um e-mail automático do Sistema de Gestão de Brindes - Núcleo Asset.
   </div>
 </div>`;
 }
