@@ -1078,12 +1078,12 @@ function renderMovimentos(movs) {
 }
 
 function preencherDropdowns(data) {
+  // Dropdowns que usam o catálogo completo (DB_Cadastro)
   let dropdowns = [
     'encomenda-brinde',
     'transf-brinde',
     'pedido-brinde',
-    'reg-brinde',
-    'saida-brinde'
+    'reg-brinde'
   ];
   dropdowns.forEach(id=>{
     let el = document.getElementById(id);
@@ -1097,6 +1097,20 @@ function preencherDropdowns(data) {
       el.innerHTML += `<option value="${b.id}" data-nome="${b.nome}">${b.nome}</option>`;
     });
   });
+
+  // Dropdown de Saída: apenas itens com saldo_nucleo > 0
+  let elSaida = document.getElementById('saida-brinde');
+  if (elSaida) {
+    elSaida.innerHTML = '<option value="">Selecione...</option>';
+    let disponiveis = (data.dashboard || []).filter(d => d.saldo_nucleo > 0);
+    if (disponiveis.length === 0) {
+      elSaida.innerHTML += '<option value="" disabled>Nenhum item disponível em estoque</option>';
+    } else {
+      disponiveis.forEach(d => {
+        elSaida.innerHTML += `<option value="${d.id}" data-nome="${d.nome}">${d.nome} (disponível: ${d.saldo_nucleo})</option>`;
+      });
+    }
+  }
 }
 
 function renderCadastroTable(data) {
@@ -1314,7 +1328,12 @@ function submitSaida(event) {
     retirante: retirante
   };
   google.script.run
-    .withSuccessHandler(resp => { hideLoading(); closeAllModals(); atualizarApp(); })
+    .withSuccessHandler(resp => {
+      hideLoading();
+      closeAllModals();
+      alert(resp?.mensagem || 'Saída registrada com sucesso.');
+      atualizarApp();
+    })
     .withFailureHandler(err => { hideLoading(); alert('Erro ao registrar saída: ' + (err?.message || err)); })
     .registrarSaida(dados);
 }
