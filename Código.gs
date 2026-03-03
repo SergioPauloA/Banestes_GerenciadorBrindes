@@ -319,13 +319,13 @@ function confirmarRecebimento(dados) {
     statusReceb='Desconformidade';
     if(!incidenteMsg || incidenteMsg.trim()=='') throw new Error("É obrigatório descrever o incidente para recebimento com divergência.");
     if(!existeEmailDesconformidade(dados.nome, qtdRec, ss)) {
-      dispararEmail('Desconformidade', {nome:dados.nome, saldo_nucleo:qtdRec, saldo_cosup:'-', incidente:incidenteMsg});
+      dispararEmail('Desconformidade', {nome:dados.nome, qtdRequisitada:qtdReq, qtdRecebida:qtdRec, incidente:incidenteMsg});
       registrarControleEmail(dados.id, 'Desconformidade', dados.nome+qtdRec, ss);
     }
   }
   else if(qtdRec>qtdReq) {
     statusReceb='Alinhamento';
-    dispararEmail('Alinhamento', {nome:dados.nome, qtdRequisitada: qtdReq, qtdRecebida: qtdRec});
+    dispararEmail('Alinhamento', {id:dados.id, nome:dados.nome, qtdRequisitada: qtdReq, qtdRecebida: qtdRec});
   }
   else {
     statusReceb='Confirmado';
@@ -360,6 +360,77 @@ function registrarControleEmail(item_id, tipo, chave, ss) {
     Utilities.formatDate(new Date(),"GMT-3","yyyy-MM-dd HH:mm:ss"),
     item_id, tipo, hash
   ]);
+}
+
+/** ------ SAÍDA DE ITEM DO ESTOQUE NÚCLEO ------ */
+function registrarSaida(dados) {
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
+  criarAbasBanco(ss);
+  const movs = ss.getSheetByName('DB_Movimentacoes');
+  const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
+  let emailUser = getActiveUserEmail();
+
+  if (!dados.retirante || String(dados.retirante).trim() === '') {
+    throw new Error('O nome do retirante é obrigatório.');
+  }
+
+  let estoqueRows = estoqueN.getLastRow() > 1
+    ? estoqueN.getRange(2, 1, estoqueN.getLastRow() - 1, 3).getValues()
+    : [];
+  let estIdx = estoqueRows.findIndex(row => String(row[0]) === String(dados.id));
+  if (estIdx < 0) throw new Error('Item não encontrado no estoque núcleo.');
+
+  let saldoAtual = Number(estoqueRows[estIdx][2]) || 0;
+  let qtdSaida = Number(dados.qtd);
+  if (qtdSaida <= 0) throw new Error('Quantidade deve ser maior que zero.');
+  if (qtdSaida > saldoAtual) throw new Error(`Quantidade solicitada (${qtdSaida}) excede o estoque disponível (${saldoAtual}).`);
+
+  let dataHora = Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss");
+  movs.appendRow([
+    dataHora,
+    dados.id,
+    dados.nome,
+    'Saída',
+    qtdSaida,
+    qtdSaida,
+    '',
+    'Saída',
+    emailUser,
+    dados.retirante  // Para registros do tipo 'Saída', o campo Incidente armazena o nome do retirante
+  ]);
+
+  let novoSaldo = saldoAtual - qtdSaida;
+  estoqueN.getRange(estIdx + 2, 3).setValue(novoSaldo);
+
+  // Verifica alertas de estoque após saída
+  try {
+    let cad = ss.getSheetByName('DB_Cadastro');
+    let cadRows = cad && cad.getLastRow() > 1
+      ? cad.getRange(2, 1, cad.getLastRow() - 1, 3).getValues()
+      : [];
+    let cadItem = cadRows.find(row => String(row[0]) === String(dados.id));
+    let minimo = cadItem ? Number(cadItem[2]) || 0 : 0;
+    if (novoSaldo === 0) {
+      enviarAlertaEstoque('zero', { id: dados.id, nome: dados.nome });
+    } else if (minimo > 0 && novoSaldo <= minimo) {
+      enviarAlertaEstoque('minimo', { id: dados.id, nome: dados.nome, saldo_nucleo: novoSaldo, min: minimo });
+    }
+  } catch(alertErr) {
+    Logger.log('Aviso: Falha ao enviar alerta de estoque: ' + alertErr);
+  }
+
+  logAcao('Saída de item', emailUser,
+    `Brinde: ${dados.nome}, Qtd: ${qtdSaida}, Retirante: ${dados.retirante}`);
+
+  dispararEmail('Saída', {
+    nome: dados.nome,
+    qtd: qtdSaida,
+    retirante: dados.retirante,
+    dataHora: dataHora,
+    usuario: emailUser
+  });
+
+  return { sucesso: true, mensagem: 'Saída registrada com sucesso.' };
 }
 
 /** ---- Sincronização e Divergência ---- */
@@ -495,31 +566,24 @@ function dispararEmail(tipo, dados) {
 
   if(tipo === 'Encomenda') {
     subject = `Nova Encomenda - Brinde ${dados.nome}`;
-    body = renderEmailFormalizacaoInterna(tipo, dados);
+    body = renderEmailEncomenda(dados);
     emails = [
       'spandrade@banestes.com.br',
       'csdamasceno@banestes.com.br'
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br',
-      //'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Transferência') {
     subject = `Transferência Efetuada - Brinde ${dados.nome}`;
-    body = renderEmailFormalizacaoInterna(tipo, dados);
+    body = renderEmailTransferencia(dados);
     emails = [
       'spandrade@banestes.com.br',
       'csdamasceno@banestes.com.br'
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br',
-      //'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Desconformidade') {
-    subject = `Divergência Recebida - Brinde ${dados.nome}`;
+    subject = `Divergência de Recebimento - Brinde ${dados.nome}`;
     body = renderEmailDivergenciaCosup(dados);
     emails = [
       'spandrade@banestes.com.br',
       'csdamasceno@banestes.com.br'
-      //'enviocosup@banestes.com.br'
     ];
   } else if(tipo === 'Alinhamento') {
     subject = `Recebimento Excedente - Brinde ${dados.nome}`;
@@ -527,17 +591,19 @@ function dispararEmail(tipo, dados) {
     emails = [
       'spandrade@banestes.com.br',
       'csdamasceno@banestes.com.br'
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br'
     ];
   } else if(tipo === 'Regularizacao') {
-    subject = `Regularização Manual`;
+    subject = `Formalização de Ajuste Manual - Brinde ${dados.nome}`;
     body = renderEmailRegularizacao(dados);
     emails = [
       'spandrade@banestes.com.br',
       'csdamasceno@banestes.com.br'
-      //'gadian@banestes.com.br',
-      //'asmoreira@banestes.com.br'
+    ];
+  } else if(tipo === 'Saída') {
+    subject = `Saída de Item - ${dados.nome}`;
+    body = renderEmailSaida(dados);
+    emails = [
+      'csdamasceno@banestes.com.br'
     ];
   } else {
     subject = `Alerta sistema - Brinde ${dados.nome||''}`;
@@ -545,7 +611,6 @@ function dispararEmail(tipo, dados) {
     emails = [
       'spandrade@banestes.com.br',
       'csdamasceno@banestes.com.br'
-      //'gadian@banestes.com.br'
     ];
   }
 
@@ -556,197 +621,223 @@ function dispararEmail(tipo, dados) {
   });
 }
 
-// Templates de email (copie do seu exemplo e use string template)
-function renderEmailFormalizacaoInterna(tipo, dados) {
-  return `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #e4e8ee; border-radius: 8px; overflow: hidden;">
-  <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
-    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">RELATÓRIO DE MOVIMENTAÇÃO INTERNA</h2>
-  </div>
-  <div style="padding: 25px; line-height: 1.6;">
-    <p>Prezados,</p>
-    <p>Informamos que uma nova ação foi registrada no <strong>Gerenciador de Ativos - Núcleo Asset</strong> e requer sua ciência:</p>
-    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Evento:</td>
-        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${tipo}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Item:</td>
-        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${dados.nome}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9; font-weight: bold;">Solicitante:</td>
-        <td style="padding: 8px; border-bottom: 1px solid #f4f7f9;">${getActiveUserEmail()}</td>
-      </tr>
-    </table>
-  </div>
-  <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 12px; color: #7a8fa6;">
-    Este é um e-mail automático do Sistema de Gestão de Brindes - Núcleo Asset.
-  </div>
-</div>`; // coloque o HTML fornecido no seu exemplo!
+// ============================================================
+// TEMPLATES DE E-MAIL — Layout padronizado Núcleo Asset
+// ============================================================
+
+/** Helper: linha de detalhe da tabela padrão */
+function _emailRow(label, value, last) {
+  var border = last ? '' : 'border-bottom:1px solid #eef0f3;';
+  return `<tr style="${border}">
+    <td style="padding:10px 14px;font-weight:600;color:#003366;width:42%;white-space:nowrap;">${label}</td>
+    <td style="padding:10px 14px;color:#444;">${value}</td>
+  </tr>`;
 }
+
+/** Helper: wrapper completo do e-mail com cabeçalho, corpo e rodapé padronizados */
+function _emailWrapper(headerBg, headerText, title, subtitle, bodyHtml) {
+  var ts = Utilities.formatDate(new Date(), 'GMT-3', 'dd/MM/yyyy HH:mm:ss');
+  return `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;border:1px solid #e4e8ee;border-radius:8px;overflow:hidden;">
+  <div style="background:${headerBg};color:${headerText};padding:20px 25px;text-align:center;">
+    <h2 style="margin:0;font-size:18px;letter-spacing:1px;text-transform:uppercase;">${title}</h2>
+    <p style="margin:7px 0 0;font-size:12px;opacity:0.88;">${subtitle}</p>
+  </div>
+  <div style="padding:24px 25px;background:#ffffff;line-height:1.6;">
+    ${bodyHtml}
+  </div>
+  <div style="background:#f4f7f9;padding:13px 25px;text-align:center;font-size:11px;color:#7a8fa6;border-top:1px solid #e4e8ee;">
+    E-mail automático — Gerenciador de Brindes · Núcleo Asset &nbsp;|&nbsp; Gerado em: <strong>${ts}</strong>
+  </div>
+</div>`;
+}
+
+/** 1. NOVA ENCOMENDA */
+function renderEmailEncomenda(dados) {
+  var rows =
+    _emailRow('Brinde', dados.nome) +
+    _emailRow('Quantidade Solicitada', dados.qtd) +
+    (dados.prazo ? _emailRow('Prazo Máximo', dados.prazo + ' dias') : '') +
+    _emailRow('Solicitante', getActiveUserEmail(), true);
+
+  var body = `<p>Prezados,</p>
+<p>Uma nova <strong>encomenda de brinde</strong> foi registrada no sistema e aguarda providências de aquisição:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+<p style="font-size:13px;color:#555;">Por favor, providenciar o pedido conforme os dados acima e registrar o recebimento no sistema após a chegada do material.</p>`;
+
+  return _emailWrapper('#003366', '#ffffff', 'Nova Encomenda de Brinde', 'Gerenciador de Brindes — Núcleo Asset', body);
+}
+
+/** 2. TRANSFERÊNCIA DE ESTOQUE (COSUP → NÚCLEO) */
+function renderEmailTransferencia(dados) {
+  var rows =
+    _emailRow('Brinde', dados.nome) +
+    _emailRow('Quantidade Transferida', dados.qtd) +
+    (dados.prazo ? _emailRow('Prazo Previsto', dados.prazo + ' dias') : '') +
+    _emailRow('Responsável', getActiveUserEmail(), true);
+
+  var body = `<p>Prezados,</p>
+<p>Uma <strong>transferência de estoque</strong> foi registrada no sistema. Os itens serão movimentados do estoque COSUP para o Núcleo Asset:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+<div style="background:#eef4ff;border-left:4px solid #003366;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;font-size:13px;">
+  Aguardar confirmação do recebimento físico para atualização do saldo no sistema.
+</div>`;
+
+  return _emailWrapper('#003366', '#ffffff', 'Transferência de Estoque', 'Gerenciador de Brindes — Núcleo Asset', body);
+}
+
+/** 3. SAÍDA DE ITEM (MOVIMENTAÇÃO INTERNA) */
+function renderEmailSaida(dados) {
+  var rows =
+    _emailRow('Brinde', dados.nome) +
+    _emailRow('Quantidade Retirada', dados.qtd) +
+    _emailRow('Retirante', dados.retirante) +
+    _emailRow('Data / Hora', dados.dataHora) +
+    _emailRow('Operador', dados.usuario, true);
+
+  var body = `<p>Prezado(a),</p>
+<p>Informamos que foi realizada uma <strong>saída de item</strong> do estoque do Núcleo Asset:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+<p style="font-size:13px;color:#555;">Esta movimentação já foi descontada do saldo do estoque núcleo no sistema.</p>`;
+
+  return _emailWrapper('#003366', '#ffffff', 'Saída de Item — Movimentação Interna', 'Gerenciador de Brindes — Núcleo Asset', body);
+}
+
+/** 4. DIVERGÊNCIA DE RECEBIMENTO */
 function renderEmailDivergenciaCosup(dados) {
-  return `<div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; border: 2px solid #fa4444; border-radius: 8px;">
-  <div style="background-color: #fa4444; color: #ffffff; padding: 15px;">
-    <h3 style="margin: 0;">ALERTA: Divergência de Recebimento</h3>
-  </div>
-  <div style="padding: 20px;">
-    <p>Prezada equipe <strong>COSUP</strong>,</p>
-    <p>Identificamos uma desconformidade entre a guia de remessa e o material físico recebido no Núcleo:</p>
-    <div style="background-color: #fff4f4; border-left: 4px solid #fa4444; padding: 15px; margin: 15px 0;">
-      <strong>Item:</strong> ${dados.nome}<br>
-      <strong>Qtd. Esperada:</strong> ${dados.qtdRequisitada}<br>
-      <strong>Qtd. Efetiva:</strong> ${dados.qtdRecebida}<br>
-      <br>
-      <strong>Incidente Registrado:</strong><br>
-      <i style="color: #555;">"${dados.incidente}"</i>
-    </div>
-    <p>Solicitamos a verificação no estoque central para alinhamento de saldos.</p>
-  </div>
-</div>`;
-}
-function renderEmailRegularizacao(dados) {
-  return `<div style="font-family: 'Segoe UI', sans-serif; color: #00284d; max-width: 600px; border: 1px solid #2684ff;">
-  <div style="background-color: #2684ff; color: #ffffff; padding: 15px;">
-    <h3 style="margin: 0;">Formalização de Ajuste Manual (Regularização)</h3>
-  </div>
-  <div style="padding: 20px;">
-    <p>Informamos que o item abaixo foi <strong>regularizado manualmente</strong> no sistema, alterando o status de <i>Desconformidade</i> para <i>Em Estoque</i> conforme acordado entre as partes.</p>
-    
-    <table style="width: 100%; background: #f0f7ff; border-radius: 4px; padding: 15px;">
-      <tr><td><strong>Brinde:</strong></td><td>${dados.nome} (ID: ${dados.id})</td></tr>
-      <tr><td><strong>Saldo Final Ajustado:</strong></td><td>${dados.novoSaldo} unidades</td></tr>
-      <tr><td><strong>Responsável:</strong></td><td>${getActiveUserEmail()}</td></tr>
-    </table>
+  var qtdEsperada = dados.qtdRequisitada !== undefined ? dados.qtdRequisitada : dados.saldo_cosup;
+  var qtdEfetiva  = dados.qtdRecebida   !== undefined ? dados.qtdRecebida   : dados.saldo_nucleo;
+  var diff = Number(qtdEsperada) - Number(qtdEfetiva);
 
-    <div style="margin-top: 20px; border-top: 1px dashed #2684ff; padding-top: 10px;">
-      <strong>Justificativa da Aceite/Troca:</strong><br>
-      <p style="background: #ffffff; border: 1px solid #e4e8ee; padding: 10px; border-radius: 4px;">
-        ${dados.justificativa}
-      </p>
-    </div>
-    <p style="font-size: 11px; color: #7a8fa6;">*Este registro substitui a pendência anterior e encerra o incidente de desconformidade para este lote.</p>
-  </div>
-</div>`;
+  var rows =
+    _emailRow('Brinde', dados.nome) +
+    _emailRow('Qtd. Esperada', qtdEsperada) +
+    _emailRow('Qtd. Recebida', qtdEfetiva) +
+    _emailRow('Diferença (a menor)', '- ' + diff, !dados.incidente);
+
+  var incidenteBloco = dados.incidente
+    ? `<div style="background:#fff5f5;border-left:4px solid #c53030;padding:12px 16px;border-radius:0 6px 6px 0;margin:12px 0;font-size:13px;">
+        <strong>Incidente Registrado:</strong><br><i>"${dados.incidente}"</i>
+      </div>`
+    : '';
+
+  var body = `<p>Prezados,</p>
+<p>Identificamos uma <strong>desconformidade entre a guia de remessa e o material físico</strong> recebido no Núcleo:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+${incidenteBloco}
+<p style="font-size:13px;color:#555;">Solicitamos a verificação no estoque central (COSUP) para alinhamento de saldos e regularização do lote.</p>`;
+
+  return _emailWrapper('#c53030', '#ffffff', 'Divergência de Recebimento', 'Alerta de Desconformidade — Núcleo Asset', body);
 }
+
+/** 5. ALINHAMENTO — RECEBIMENTO A MAIS */
 function renderEmailExcedente(dados) {
-  return `<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #36b37e; border-radius: 8px; overflow: hidden;">
-  <div style="background-color: #36b37e; color: #ffffff; padding: 20px; text-align: center;">
-    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">NOTIFICAÇÃO DE EXCEDENTE DE RECEBIMENTO</h2>
-  </div>
-  <div style="padding: 25px; line-height: 1.6;">
-    <p>Prezados,</p>
-    <p>Durante a conferência de entrada no <strong>Núcleo Asset</strong>, identificamos o recebimento de uma <strong>quantidade superior</strong> à solicitada originalmente.</p>
-    
-    <div style="background-color: #f0fff4; border: 1px solid #c6f6d5; padding: 15px; border-radius: 5px; margin: 15px 0;">
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr>
-          <td style="padding: 5px; font-weight: bold;">Item:</td>
-          <td style="padding: 5px;">${dados.nome} (ID: ${dados.id})</td>
-        </tr>
-        <tr>
-          <td style="padding: 5px; font-weight: bold;">Qtd. Solicitada:</td>
-          <td style="padding: 5px; color: #555;">${dados.qtdRequisitada}</td>
-        </tr>
-        <tr>
-          <td style="padding: 5px; font-weight: bold; color: #276749;">Qtd. Recebida:</td>
-          <td style="padding: 5px; font-weight: bold; color: #276749;">${dados.qtdRecebida}</td>
-        </tr>
-        <tr>
-          <td style="padding: 5px; font-weight: bold; color: #c53030;">Diferença (A maior):</td>
-          <td style="padding: 5px; font-weight: bold; color: #c53030;">+ ${dados.qtdRecebida - dados.qtdRequisitada}</td>
-        </tr>
-      </table>
-    </div>
+  var diff = Number(dados.qtdRecebida) - Number(dados.qtdRequisitada);
 
-    <p><strong>Ação tomada:</strong> O saldo excedente foi incorporado ao estoque atual após validação física.</p>
-    
-    <p style="font-size: 13px; color: #666;">
-      <strong>Responsável pela conferência:</strong> ${getActiveUserEmail()}<br>
-      <strong>Data/Hora:</strong> ${new Date().toLocaleString('pt-BR')}
-    </p>
-  </div>
-  <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 12px; color: #7a8fa6;">
-    Este é um registro automático de conformidade do Sistema Núcleo Asset.
-  </div>
+  var rows =
+    _emailRow('Brinde', dados.nome + (dados.id ? ' (ID: ' + dados.id + ')' : '')) +
+    _emailRow('Qtd. Solicitada', dados.qtdRequisitada) +
+    _emailRow('Qtd. Recebida', dados.qtdRecebida) +
+    _emailRow('Diferença (a maior)', '+ ' + diff) +
+    _emailRow('Responsável pela conferência', getActiveUserEmail(), true);
+
+  var body = `<p>Prezados,</p>
+<p>Durante a conferência de entrada no Núcleo Asset, identificamos o recebimento de uma <strong>quantidade superior</strong> à solicitada originalmente:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+<div style="background:#f0fff4;border-left:4px solid #276749;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;font-size:13px;">
+  <strong>Ação tomada:</strong> O saldo excedente foi incorporado ao estoque atual após validação física.
 </div>`;
+
+  return _emailWrapper('#276749', '#ffffff', 'Recebimento com Excedente', 'Alinhamento de Saldo — Núcleo Asset', body);
 }
+
+/** 6. FORMALIZAÇÃO DE AJUSTE MANUAL (REGULARIZAÇÃO) */
+function renderEmailRegularizacao(dados) {
+  var rows =
+    _emailRow('Brinde', dados.nome + (dados.id ? ' (ID: ' + dados.id + ')' : '')) +
+    _emailRow('Saldo Final Ajustado', dados.novoSaldo + ' unidades') +
+    _emailRow('Responsável', getActiveUserEmail(), !dados.justificativa);
+
+  var justBloco = dados.justificativa
+    ? `<div style="background:#f0f7ff;border-left:4px solid #1a6bb5;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;font-size:13px;">
+        <strong>Justificativa:</strong><br>${dados.justificativa}
+      </div>`
+    : '';
+
+  var body = `<p>Prezados,</p>
+<p>Informamos que o item abaixo foi <strong>regularizado manualmente</strong> no sistema, encerrando o incidente de desconformidade para este lote:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+${justBloco}
+<p style="font-size:12px;color:#888;">*Este registro substitui a pendência anterior e consolida o saldo no estoque núcleo.</p>`;
+
+  return _emailWrapper('#1a6bb5', '#ffffff', 'Formalização de Ajuste Manual', 'Regularização de Estoque — Núcleo Asset', body);
+}
+
+/** 7. ESTOQUE MÍNIMO ATINGIDO */
+function renderEstoqueMinEmail(dados) {
+  var rows =
+    _emailRow('Brinde', dados.nome) +
+    _emailRow('ID', dados.id) +
+    _emailRow('Saldo Atual', dados.saldo_nucleo + ' unidades') +
+    _emailRow('Estoque Mínimo de Segurança', dados.min + ' unidades', true);
+
+  var body = `<p>Prezados,</p>
+<p>O item abaixo atingiu o <strong>nível mínimo de segurança</strong> no estoque do Núcleo e necessita de reposição imediata:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+<div style="background:#fffbeb;border-left:4px solid #b87c00;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;font-size:13px;">
+  Sugerimos a abertura de uma nova <strong>Encomenda</strong> ou <strong>Transferência COSUP</strong> através do sistema para evitar a ruptura total do estoque.
+</div>`;
+
+  return _emailWrapper('#b87c00', '#ffffff', '⚠️ Estoque Mínimo Atingido', 'Alerta de Reposição — Núcleo Asset', body);
+}
+
+/** 8. ESTOQUE ZERADO */
+function renderEstoqueZeroEmail(dados) {
+  var rows =
+    _emailRow('Brinde', dados.nome) +
+    _emailRow('ID', dados.id) +
+    _emailRow('Saldo Atual', '0 unidades') +
+    _emailRow('Status', 'INDISPONÍVEL', true);
+
+  var body = `<p>Prezados,</p>
+<p style="color:#c53030;font-weight:600;">Atenção: O item abaixo está com saldo <u>zerado</u> no estoque físico do Núcleo.</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+<div style="background:#fff5f5;border-left:4px solid #c53030;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;font-size:13px;">
+  Qualquer nova solicitação de saída para este brinde será <strong>negada</strong> até que uma nova entrada ou regularização seja processada no sistema.
+</div>`;
+
+  return _emailWrapper('#c53030', '#ffffff', '🚨 Estoque Zerado — Ação Urgente', 'Alerta Crítico — Núcleo Asset', body);
+}
+
 
 function enviarAlertaEstoque(status, dados) {
   var subject = '';
   var htmlBody = '';
   if (status === 'minimo') {
-    subject = `AVISO: Estoque Mínimo Atingido - ${dados.nome}`;
+    subject = `⚠️ Estoque Mínimo Atingido - ${dados.nome}`;
     htmlBody = renderEstoqueMinEmail(dados);
   } else if (status === 'zero') {
-    subject = `ALERTA: Estoque Zerado - ${dados.nome}`;
+    subject = `🚨 Estoque Zerado - ${dados.nome}`;
     htmlBody = renderEstoqueZeroEmail(dados);
   }
-  var emails = [
-    'spandrade@banestes.com.br',
-    'csdamasceno@banestes.com.br'
-    //'gadian@banestes.com.br',
-    //'asmoreira@banestes.com.br',
-    //'csdamasceno@banestes.com.br'
-  ];
-  MailApp.sendEmail({ to: emails.join(","), subject: subject, htmlBody: htmlBody });
-}
-function renderEstoqueMinEmail(dados) {
-  return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 1px solid #ffd166; border-radius: 8px; overflow: hidden;">
-  <div style="background-color: #ffd166; color: #003366; padding: 20px; text-align: center;">
-    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">⚠️ ALERTA: ESTOQUE MÍNIMO ATINGIDO</h2>
-  </div>
-  <div style="padding: 25px; line-height: 1.6;">
-    <p>Prezados,</p>
-    <p>O item abaixo atingiu o <strong>nível crítico de segurança</strong> no estoque do Núcleo e necessita de reposição imediata:</p>
-    
-    <div style="background-color: #fffbeb; border-left: 4px solid #ffd166; padding: 15px; margin: 15px 0;">
-      <strong>Brinde:</strong> ${dados.nome} <br>
-      <strong>ID:</strong> ${dados.id} <br>
-      <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
-      <strong>Saldo Atual:</strong> <span style="color: #d69e2e; font-weight: bold;">${dados.saldo_nucleo}</span><br>
-      <strong>Estoque Mínimo:</strong> ${dados.min}
-    </div>
-
-    <p>Sugerimos a abertura de uma nova <strong>Encomenda</strong> ou <strong>Transferência COSUP</strong> através do sistema para evitar a ruptura total.</p>
-  </div>
-  <div style="background-color: #f4f7f9; padding: 15px; text-align: center; font-size: 11px; color: #7a8fa6;">
-    Gerenciado por Núcleo Asset - Sistema de Controle de Ativos.
-  </div>
-</div>`;
-}
-function renderEstoqueZeroEmail(dados) {
-  return `<div style="font-family: 'Segoe UI', Arial, sans-serif; color: #00284d; max-width: 600px; border: 2px solid #fa4444; border-radius: 8px; overflow: hidden;">
-  <div style="background-color: #fa4444; color: #ffffff; padding: 20px; text-align: center;">
-    <h2 style="margin: 0; font-size: 18px; letter-spacing: 1px;">🚨 CRÍTICO: ESTOQUE ZERADO</h2>
-  </div>
-  <div style="padding: 25px; line-height: 1.6;">
-    <p>Prezados,</p>
-    <p style="color: #fa4444; font-weight: bold;">Atenção: O item abaixo está com saldo zerado no estoque físico do Núcleo.</p>
-    
-    <div style="background-color: #fff5f5; border: 1px solid #feb2b2; padding: 15px; border-radius: 5px; margin: 15px 0;">
-      <table style="width: 100%;">
-        <tr>
-          <td><strong>Item:</strong></td>
-          <td>${dados.nome}</td>
-        </tr>
-        <tr>
-          <td><strong>ID:</strong></td>
-          <td>${dados.id}</td>
-        </tr>
-        <tr>
-          <td><strong>Status:</strong></td>
-          <td><span style="background: #fa4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px;">INDISPONÍVEL</span></td>
-        </tr>
-      </table>
-    </div>
-
-    <p>Qualquer nova solicitação de saída para este brinde será negada até que a regularização ou nova entrada seja processada.</p>
-  </div>
-  <div style="border-top: 1px solid #eee; padding: 15px; font-size: 12px; color: #666; font-style: italic;">
-    Relatório gerado em: ${new Date().toLocaleString('pt-BR')}
-  </div>
-</div>`;
+  if (!subject) return;
+  var emails = ['spandrade@banestes.com.br', 'csdamasceno@banestes.com.br'];
+  MailApp.sendEmail({ to: emails.join(','), subject: subject, htmlBody: htmlBody });
 }
 
 /*function renderEmailPedidoDiretoria(dados) {
@@ -952,7 +1043,7 @@ function debugEstrutura() {
 function testarTodosEmailsSistema() {
   var destinatario = 'spandrade@banestes.com.br';
 
-  // 1. Formalização Interna (Encomenda)
+  // 1. Nova Encomenda
   var dadosEncomenda = {
     nome: "Brinde Teste Encomenda",
     qtd: 10,
@@ -961,8 +1052,21 @@ function testarTodosEmailsSistema() {
   };
   MailApp.sendEmail({
     to: destinatario,
-    subject: '[TESTE] Formalização Interna (Encomenda)',
-    htmlBody: renderEmailFormalizacaoInterna('Encomenda', dadosEncomenda)
+    subject: '[TESTE] Nova Encomenda',
+    htmlBody: renderEmailEncomenda(dadosEncomenda)
+  });
+
+  // 1b. Transferência
+  var dadosTransferencia = {
+    nome: "Brinde Teste Transferência",
+    qtd: 5,
+    prazo: "3",
+    id: "999"
+  };
+  MailApp.sendEmail({
+    to: destinatario,
+    subject: '[TESTE] Transferência de Estoque',
+    htmlBody: renderEmailTransferencia(dadosTransferencia)
   });
 
   // 2. Divergência à COSUP
@@ -1029,21 +1133,21 @@ function testarTodosEmailsSistema() {
     htmlBody: renderEstoqueZeroEmail(dadosZero)
   });
 
-  // 7. Pedido Especial Diretoria
-  var dadosDiretoria = {
-    nome: "Brinde Diretoria",
-    qtd: 25,
-    data: Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd"),
-    obs: "Urgente devido ao evento",
-    id: "993"
+  // 7. Saída de Item
+  var dadosSaida = {
+    nome: "Brinde Saída Teste",
+    qtd: 3,
+    retirante: "João da Silva",
+    dataHora: Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss"),
+    usuario: "spandrade@banestes.com.br"
   };
   MailApp.sendEmail({
     to: destinatario,
-    subject: '[TESTE] Pedido Especial Diretoria',
-    htmlBody: renderEmailPedidoDiretoria(dadosDiretoria)
+    subject: '[TESTE] Saída de Item',
+    htmlBody: renderEmailSaida(dadosSaida)
   });
 
-  Logger.log('[TESTE] Todos os 7 modelos de e-mail enviados para ' + destinatario);
+  Logger.log('[TESTE] Todos os modelos de e-mail enviados para ' + destinatario);
 }
 
 function adicionarItensEstoqueLista() {
