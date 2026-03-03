@@ -37,7 +37,6 @@
       grid-template-areas:
         "sidebar header"
         "sidebar main";
-      zoom: 0.95;
       height: 100vh;
       overflow: hidden;
     }
@@ -290,15 +289,14 @@
     /* MODAIS e OVERLAY CENTRALIZADO COM BLUR */
     .modal-overlay {
       position: fixed;
-      top: 0; left: 0;
-      width: 100vw;
-      height: 100vh;
+      inset: 0;
       background: rgba(30,40,70,0.20);
       z-index: 1001;
       display: none;
       align-items: center;
       justify-content: center;
       backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
       transition: opacity .22s;
     }
     .modal-overlay.active { display: flex !important; }
@@ -307,6 +305,8 @@
       border-radius: var(--border-radius);
       box-shadow: 0 7px 34px rgba(0,30,90,0.18);
       min-width: min(360px, 95vw); max-width:96vw;
+      max-height: 90vh;
+      overflow-y: auto;
       padding: 13px 17px 13px 17px;
       display: flex; flex-direction: column; justify-content: center;
       margin: auto;
@@ -398,7 +398,7 @@
     .btn.outline { background: none; color: var(--primary); border: 1px solid var(--primary);}
     .btn[disabled], .btn.disabled { background: var(--gray-medium) !important; color: var(--gray-dark) !important; cursor: not-allowed;}
     .spinner-overlay {
-      position: fixed; top:0; left:0; width:100vw; height:100vh;
+      position: fixed; inset: 0;
       background: rgba(255,255,255,0.85);
       display: none; align-items: center; justify-content: center;
       z-index: 1002; transition: opacity 0.22s;
@@ -440,6 +440,33 @@
       0% {transform: rotate(0);}
       100% {transform: rotate(360deg);}
     }
+    /* Hamburger button - visible only on mobile */
+    .sidebar-toggle {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px 10px;
+      font-size: 22px;
+      color: var(--primary);
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: background 0.15s;
+      margin-right: 8px;
+    }
+    .sidebar-toggle:hover { background: var(--gray-medium); }
+
+    /* Mobile sidebar backdrop */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 99;
+    }
+    body.sidebar-open .sidebar-backdrop { display: block; }
+
     @media (max-width: 1100px) { .dashboard-kpis {flex-direction: column;} .main-area {padding: 9px;}}
     @media (max-width:900px) {
       body {grid-template-columns: 56px 1fr;}
@@ -450,12 +477,24 @@
     }
     @media (max-width:700px) {
       body {
-        grid-template-columns: 0 1fr;
+        grid-template-columns: 1fr;
+        grid-template-rows: 58px 1fr;
         grid-template-areas:
           "header"
           "main";
       }
-      .sidebar { display: none;}
+      .sidebar {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 220px;
+        height: 100%;
+        z-index: 100;
+      }
+      body.sidebar-open .sidebar { display: flex; }
+      .sidebar-header { font-size: 16px; }
+      .nav-btn { font-size: 14px; padding-left: 11px; padding-right: 11px; }
+      .sidebar-toggle { display: flex; }
       .header{padding-left:10px;}
       .main-area{margin-left:0;}
       .content-section{padding:9px 2vw;}
@@ -486,11 +525,13 @@
     </div>
   </nav>
   <header class="header">
+    <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Abrir/fechar menu de navegação">&#9776;</button>
     <span class="header-title">
       Bem-vindo ao Gerenciador de Brindes - Brindes Asset
     </span>
     <span class="header-user" id="user-email"></span>
   </header>
+  <div class="sidebar-backdrop" onclick="closeSidebar()"></div>
   <main class="main-area">
     <!-- SPA SECTIONS -->
     <section class="content-section active" id="section-dashboard">
@@ -969,6 +1010,7 @@ function openTab(tabName) {
   });
   document.getElementById(`tab-btn-${tabName}`).classList.add('active');
   document.getElementById(`section-${tabName}`).classList.add('active');
+  document.body.classList.remove('sidebar-open');
 }
 
 // --- Renderização de tabelas e dashboard
@@ -1406,6 +1448,14 @@ function filtrarMovimentosPorStatus() {
     lista = lista.filter(m => (m.status || '').toLowerCase() === filtro.toLowerCase());
   }
   renderMovimentosFiltrados(lista);
+}
+
+// --- Mobile sidebar toggle
+function toggleSidebar() {
+  document.body.classList.toggle('sidebar-open');
+}
+function closeSidebar() {
+  document.body.classList.remove('sidebar-open');
 }
 </script>
 </body>
