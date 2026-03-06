@@ -624,6 +624,7 @@
             <option value="Alinhamento">Alinhamento</option>
           </select>
         <button class="btn primary" onclick="openModal('modalNovaEncomenda')">Nova Encomenda</button>
+        <button class="btn primary" onclick="openNovaTransferencia()">Nova Transferência</button>
       </div>
       <div class="table-wrapper">
         <table id="table-movimentos">
@@ -844,10 +845,10 @@
           <div class="form-row">
             <div class="form-group">
               <label for="transf-brinde">Brinde</label>
-              <select id="transf-brinde" required></select>
+              <select id="transf-brinde" required onchange="atualizarEstoqueTransferencia()"></select>
             </div>
             <div class="form-group">
-              <label for="transf-qtd">Quantidade</label>
+              <label for="transf-qtd">Quantidade <span id="transf-cosup-hint" style="font-size:11px;color:var(--gray-dark);font-weight:400;"></span></label>
               <input type="number" id="transf-qtd" min="1" required />
             </div>
             <div class="form-group">
@@ -1298,7 +1299,6 @@ function preencherDropdowns(data) {
   // Dropdowns que usam o catálogo completo (DB_Cadastro)
   let dropdowns = [
     'encomenda-brinde',
-    'transf-brinde',
     'pedido-brinde',
     'reg-brinde'
   ];
@@ -1314,6 +1314,20 @@ function preencherDropdowns(data) {
       el.innerHTML += `<option value="${b.id}" data-nome="${b.nome}">${b.nome}</option>`;
     });
   });
+
+  // Dropdown de Transferência: apenas itens com saldo_cosup > 0
+  let elTransf = document.getElementById('transf-brinde');
+  if (elTransf) {
+    elTransf.innerHTML = '<option value="">Selecione...</option>';
+    let disponiveis = (data.dashboard || []).filter(d => Number(d.saldo_cosup) > 0);
+    if (disponiveis.length === 0) {
+      elTransf.innerHTML += '<option value="" disabled>Nenhum item disponível no estoque COSUP</option>';
+    } else {
+      disponiveis.forEach(d => {
+        elTransf.innerHTML += `<option value="${d.id}" data-nome="${d.nome}">${d.nome} (COSUP: ${d.saldo_cosup})</option>`;
+      });
+    }
+  }
 
   // Dropdown de Saída: apenas itens com saldo_nucleo > 0
   let elSaida = document.getElementById('saida-brinde');
@@ -1443,15 +1457,29 @@ function submitEncomenda(event) {
 }
 function submitTransferencia(event) {
   event.preventDefault();
-  showLoading();
   let sel = document.getElementById('transf-brinde');
   let brindeId = sel.value;
   let brindeNome = sel.selectedOptions[0]?.dataset.nome || '';
+  let qtd = Number(document.getElementById('transf-qtd').value);
+  let prazo = document.getElementById('transf-prazo').value;
+
+  if (!brindeId) { showNotification('Selecione um brinde.', 'warning'); return; }
+
+  // Validate against COSUP stock data locally
+  if (_appdata && _appdata.dashboard) {
+    let item = _appdata.dashboard.find(d => String(d.id) === String(brindeId));
+    if (item && qtd > Number(item.saldo_cosup)) {
+      showNotification(`Quantidade solicitada (${qtd}) excede o estoque COSUP disponível (${item.saldo_cosup}).`, 'warning');
+      return;
+    }
+  }
+
+  showLoading();
   let dados = {
     id: brindeId,
     nome: brindeNome,
-    qtd: document.getElementById('transf-qtd').value,
-    prazo: document.getElementById('transf-prazo').value
+    qtd: qtd,
+    prazo: prazo
   };
   google.script.run
     .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Transferência registrada com sucesso.', 'success'); atualizarApp(); })
@@ -1528,6 +1556,36 @@ function renderSaidasTable(movimentos) {
       </tr>
     `;
   });
+}
+
+function atualizarEstoqueTransferencia() {
+  let sel = document.getElementById('transf-brinde');
+  let id = sel.value;
+  let hint = document.getElementById('transf-cosup-hint');
+  let qtdInput = document.getElementById('transf-qtd');
+  if (!id || !_appdata || !_appdata.dashboard) {
+    hint.textContent = '';
+    qtdInput.removeAttribute('max');
+    return;
+  }
+  let item = _appdata.dashboard.find(d => String(d.id) === String(id));
+  if (item) {
+    hint.textContent = `(COSUP disponível: ${item.saldo_cosup})`;
+    qtdInput.setAttribute('max', item.saldo_cosup);
+    qtdInput.value = '';
+  } else {
+    hint.textContent = '';
+    qtdInput.removeAttribute('max');
+  }
+}
+
+function openNovaTransferencia() {
+  openModal('modalNovaTransferencia');
+  // Reset hint and max when opening fresh
+  let hint = document.getElementById('transf-cosup-hint');
+  let qtdInput = document.getElementById('transf-qtd');
+  if (hint) hint.textContent = '';
+  if (qtdInput) qtdInput.removeAttribute('max');
 }
 
 function atualizarEstoqueSaida() {
