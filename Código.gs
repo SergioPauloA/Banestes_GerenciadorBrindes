@@ -340,7 +340,7 @@ function registrarTransferencia(dados) {
     ''
   ]);
   logAcao('Nova transferência', emailUser, `Brinde: ${dados.nome}, Qtd: ${dados.qtd}`);
-  dispararEmail('Transferência', {nome:dados.nome, qtd:dados.qtd});
+  dispararEmail('Transferência', {nome:dados.nome, qtd:dados.qtd, prazo:dados.prazo});
   return {sucesso:true, mensagem:"Transferência registrada com sucesso."};
 }
 
@@ -617,48 +617,63 @@ function dispararEmail(tipo, dados) {
     subject = `Nova Encomenda - Brinde ${dados.nome}`;
     body = renderEmailEncomenda(dados);
     emails = [
-      'spandrade@banestes.com.br',
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Transferência') {
     subject = `Transferência Efetuada - Brinde ${dados.nome}`;
     body = renderEmailTransferencia(dados);
     emails = [
-      'spandrade@banestes.com.br',
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Desconformidade') {
     subject = `Divergência de Recebimento - Brinde ${dados.nome}`;
     body = renderEmailDivergenciaCosup(dados);
     emails = [
-      'spandrade@banestes.com.br',
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Alinhamento') {
     subject = `Recebimento Excedente - Brinde ${dados.nome}`;
     body = renderEmailExcedente(dados);
     emails = [
-      'spandrade@banestes.com.br',
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Regularizacao') {
     subject = `Formalização de Ajuste Manual - Brinde ${dados.nome}`;
     body = renderEmailRegularizacao(dados);
     emails = [
-      'spandrade@banestes.com.br',
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
   } else if(tipo === 'Saída') {
     subject = `Saída de Item - ${dados.nome}`;
     body = renderEmailSaida(dados);
     emails = [
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
   } else {
     subject = `Alerta sistema - Brinde ${dados.nome||''}`;
     body = `<pre>${JSON.stringify(dados)}</pre>`;
     emails = [
-      'spandrade@banestes.com.br',
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
   }
@@ -885,7 +900,12 @@ function enviarAlertaEstoque(status, dados) {
     htmlBody = renderEstoqueZeroEmail(dados);
   }
   if (!subject) return;
-  var emails = ['spandrade@banestes.com.br', 'csdamasceno@banestes.com.br'];
+  var emails = [
+    //'spandrade@banestes.com.br',
+    //'gadian@banestes.com.br',
+    //'asmoreira@banestes.com.br',
+    'csdamasceno@banestes.com.br'
+  ];
   MailApp.sendEmail({ to: emails.join(','), subject: subject, htmlBody: htmlBody });
 }
 
