@@ -214,7 +214,56 @@ function getAppData() {
 }
 
 
-/** -------- ENCOMENDA / TRANSFERÊNCIA / REGULARIZAÇÃO ----------- */
+/** -------- CADASTRO SIMPLES DE BRINDE (sem movimentação) ----------- */
+/**
+ * Cadastra um novo brinde no sistema sem criar qualquer registro de movimentação.
+ * Use esta função quando o item está sendo apenas adicionado ao catálogo,
+ * sem necessidade de encomenda ou transferência imediata.
+ * Para cadastrar + criar encomenda, use registrarEncomenda({ isNovo: true, ...}).
+ */
+function cadastrarBrinde(dados) {
+  const ss = SpreadsheetApp.openById(PLANILHA_ID);
+  criarAbasBanco(ss);
+  const cadastro = ss.getSheetByName('DB_Cadastro');
+  const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
+  let emailUser = getActiveUserEmail();
+
+  if (!dados.nome || String(dados.nome).trim() === '') {
+    throw new Error('O nome do brinde é obrigatório.');
+  }
+
+  let novoId = gerarNovoId(cadastro);
+  cadastro.appendRow([
+    novoId,
+    dados.nome,
+    dados.minimo || 0,
+    '',
+    Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd")
+  ]);
+  estoqueN.appendRow([novoId, dados.nome, 0]);
+  logAcao('Cadastro de brinde', emailUser, `Novo brinde: ${dados.nome} (${novoId})`);
+  return { sucesso: true, mensagem: `Brinde "${dados.nome}" cadastrado com sucesso (ID: ${novoId}).` };
+}
+
+/** -------- ENCOMENDA / TRANSFERÊNCIA ----------- */
+/**
+ * Lógica de status das movimentações:
+ *
+ * ENCOMENDA (tipo = 'Encomenda', status inicial = 'Encomenda'):
+ *   Representa uma solicitação de compra/reposição de item ao fornecedor.
+ *   Fluxo: Encomenda → (ao confirmar recebimento) → Confirmado | Desconformidade | Alinhamento
+ *
+ * TRANSFERÊNCIA (tipo = 'Transferência', status inicial = 'Transferência'):
+ *   Representa uma transferência de estoque da COSUP para o Núcleo Asset.
+ *   Fluxo: Transferência → (ao confirmar recebimento) → Confirmado | Desconformidade | Alinhamento
+ *
+ * NÃO HÁ transição automática entre Encomenda e Transferência — são fluxos independentes.
+ *
+ * DESCONFORMIDADE: Qtd. recebida < solicitada. Requer incidente. Botão "Regularizar" disponível.
+ * ALINHAMENTO: Qtd. recebida > solicitada (excedente).
+ * CONFIRMADO: Qtd. recebida = solicitada.
+ * EM ESTOQUE: Após regularização manual de uma Desconformidade.
+ */
 function registrarEncomenda(dados) {
   const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
@@ -477,7 +526,7 @@ function checarDivergencias() {
 }
 
 /** ------ REGULARIZAÇÃO MANUAL ------ */
-/*function regularizarManual(dados) {
+function regularizarManual(dados) {
   const ss = SpreadsheetApp.openById(PLANILHA_ID);
   criarAbasBanco(ss);
   const estoqueN = ss.getSheetByName('DB_Estoque_Nucleo');
@@ -507,7 +556,7 @@ function checarDivergencias() {
     '',
     dados.novoSaldo,
     '',
-    'Regularizacao',
+    'Em estoque',
     emailUser,
     dados.justificativa||''
   ]);
@@ -518,8 +567,8 @@ function checarDivergencias() {
     justificativa: dados.justificativa
   });
   logAcao('Regularização manual', emailUser, `Brinde: ${dados.nome}, Novo saldo: ${dados.novoSaldo}, Just: ${dados.justificativa||''}`);
-  return {sucesso:true, mensagem:"Regularização realizada."};
-}*/
+  return {sucesso:true, mensagem:"Regularização realizada com sucesso."};
+}
 
 /** ------ PEDIDO ESPECIAL (diretoria) ----- */
 /*function registrarPedidoEspecial(dados) {
