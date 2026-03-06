@@ -21,6 +21,7 @@
       --success: #36b37e;
       --danger: #fa4444;
       --warning: #ffd166;
+      --warning-dark: #b07000;
       --info: #2684ff;
     }
     *, *::before, *::after { box-sizing: border-box; }
@@ -506,6 +507,78 @@
       .table-wrapper {padding-left:2px;padding-right:2px;}
       .dashboard-compare {padding: 8px;}
     }
+
+    /* ====== TOAST NOTIFICATIONS ====== */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 360px;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--white);
+      border-left: 5px solid var(--info);
+      border-radius: var(--border-radius);
+      padding: 14px 16px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.16);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--primary-dark);
+      pointer-events: all;
+      animation: toastIn 0.3s ease;
+    }
+    .toast.success { border-left-color: var(--success); }
+    .toast.error   { border-left-color: var(--danger); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast.info    { border-left-color: var(--info); }
+    .toast-icon { font-size: 18px; line-height: 1.3; }
+    .toast.success .toast-icon { color: var(--success); }
+    .toast.error   .toast-icon { color: var(--danger); }
+    .toast.warning .toast-icon { color: var(--warning-dark); }
+    .toast.info    .toast-icon { color: var(--info); }
+    .toast-msg { flex: 1; line-height: 1.5; }
+    .toast-close {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--gray-dark);
+      font-size: 18px;
+      padding: 0 0 0 6px;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: color 0.15s;
+    }
+    .toast-close:hover { color: var(--danger); }
+    @keyframes toastIn {
+      from { transform: translateX(110%); opacity: 0; }
+      to   { transform: translateX(0);    opacity: 1; }
+    }
+    @keyframes toastOut {
+      from { transform: translateX(0);    opacity: 1; }
+      to   { transform: translateX(110%); opacity: 0; }
+    }
+    .toast.removing { animation: toastOut 0.3s ease forwards; }
+
+    /* Checkbox toggle helper */
+    .checkbox-label {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      margin-top: 4px;
+      user-select: none;
+    }
+    .checkbox-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
   </style>
 </head>
 <body>
@@ -701,17 +774,31 @@
               <label for="novo-nome">Nome</label>
               <input type="text" id="novo-nome" maxlength="55" required />
             </div>
-      <!--  <div class="form-group">
-              <label for="novo-id">ID (3 dígitos)</label>
-              <input type="number" id="novo-id" min="100" max="999" required />
-            </div> -->
-      <!--  <div class="form-group">
-              <label for="novo-prazo">Prazo Máximo</label>
-              <input type="number" id="novo-prazo" min="1" required />
-            </div> -->
             <div class="form-group">
               <label for="novo-min">Estoque Mínimo</label>
               <input type="number" id="novo-min" min="0" required />
+            </div>
+          </div>
+          <!-- Checkbox: adicionar quantidade inicial -->
+          <div class="form-row">
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="novo-add-qtd" onchange="toggleCadastroEncomenda(this)">
+                Adicionar quantidade inicial (criar encomenda)
+              </label>
+            </div>
+          </div>
+          <!-- Campos adicionais — visíveis apenas quando checkbox marcado -->
+          <div id="cadastro-encomenda-campos" style="display:none">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="novo-qtd">Quantidade <span style="color:var(--danger)">*</span></label>
+                <input type="number" id="novo-qtd" min="1" />
+              </div>
+              <div class="form-group">
+                <label for="novo-prazo">Prazo Máximo (dias) <span style="color:var(--danger)">*</span></label>
+                <input type="number" id="novo-prazo" min="1" />
+              </div>
             </div>
           </div>
           <div class="form-actions">
@@ -869,10 +956,20 @@
           <div class="form-row">
             <div class="form-group">
               <label>Qtd recebida:</label>
-              <input type="number" id="recebimento-qtd" min="1" required />
+              <input type="number" id="recebimento-qtd" min="1" required oninput="verificarDivergenciaRecebimento()" />
               <input type="hidden" id="recebimento-data"/>
               <input type="hidden" id="recebimento-id"/>
               <input type="hidden" id="recebimento-nome"/>
+              <input type="hidden" id="recebimento-qtd-rq"/>
+            </div>
+          </div>
+          <!-- Campo de incidente — exibido automaticamente quando qty recebida < solicitada -->
+          <div class="form-row" id="recebimento-incidente-row" style="display:none">
+            <div class="form-group">
+              <label for="recebimento-incidente" style="color:var(--danger);font-weight:600;">
+                ⚠ Incidente obrigatório (qtd. recebida menor que solicitada):
+              </label>
+              <textarea id="recebimento-incidente" rows="2" maxlength="200" placeholder="Descreva o motivo da divergência..."></textarea>
             </div>
           </div>
           <div class="form-actions">
@@ -911,13 +1008,69 @@
       </div>
     </div>-->
 
+    <!-- Modal de Regularização Manual (acionado pelo botão Regularizar na tabela de movimentos) -->
+    <div class="modal-overlay" id="modalRegularizaMovimento">
+      <div class="modal">
+        <button class="modal-close" onclick="closeModal('modalRegularizaMovimento')">&times;</button>
+        <div class="modal-title">Regularização Manual</div>
+        <form id="form-regulariza-mov" onsubmit="submitRegularizaMovimento(event)">
+          <input type="hidden" id="reg-id-mov">
+          <input type="hidden" id="reg-nome-mov">
+          <input type="hidden" id="reg-data-mov">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reg-novo-saldo">Novo Saldo</label>
+              <input type="number" id="reg-novo-saldo" min="0" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="reg-just">Justificativa</label>
+              <input type="text" id="reg-just" maxlength="100"/>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn primary">Regularizar</button>
+            <button type="button" class="btn cancel" onclick="formReset(this)">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="spinner-overlay" id="loading-spinner">
       <div class="spinner"></div>
     </div>
+
+    <!-- Toast notifications container -->
+    <div id="toast-container" class="toast-container"></div>
   </main>
 <script>
 let _movimentosOriginais = []; // Garante variável global
 
+// ====== SISTEMA DE NOTIFICAÇÕES (substitui alert()) ======
+const _removingToasts = new WeakSet();
+function showNotification(message, type = 'info', duration = 4500) {
+  const icons = { success: '✔', error: '✖', info: 'ℹ', warning: '⚠' };
+  const container = document.getElementById('toast-container');
+  if (!container) { console.warn(message); return; }
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <span class="toast-icon">${icons[type] || icons.info}</span>
+    <span class="toast-msg">${message}</span>
+    <button class="toast-close" onclick="removeToast(this.closest('.toast'))">&times;</button>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => removeToast(toast), duration);
+}
+function removeToast(toast) {
+  if (!toast || _removingToasts.has(toast)) return;
+  _removingToasts.add(toast);
+  toast.classList.add('removing');
+  setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+}
+
+// ====== REGULARIZAÇÃO MANUAL ======
 function submitRegularizaMovimento(event) {
   event.preventDefault();
   showLoading();
@@ -929,8 +1082,8 @@ function submitRegularizaMovimento(event) {
     justificativa: document.getElementById('reg-just').value
   };
   google.script.run
-    .withSuccessHandler(resp => { hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err => { hideLoading(); alert('Erro ao regularizar: ' + (err?.message || err)); })
+    .withSuccessHandler(resp => { hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Regularização realizada com sucesso.', 'success'); atualizarApp(); })
+    .withFailureHandler(err => { hideLoading(); showNotification('Erro ao regularizar: ' + (err?.message || err), 'error'); })
     .regularizarManual(dados);
 }
 
@@ -942,13 +1095,34 @@ function openRegularizaModal(data, id, nome) {
   document.getElementById('reg-nome-mov').value = nome;
 }
 
-function openRecebimentoModal(data,id,nome,qtd_rq) {
+function openRecebimentoModal(data, id, nome, qtdRq) {
   closeAllModals();
   document.getElementById('modalRecebimento').classList.add('active');
   document.getElementById('recebimento-data').value = data;
   document.getElementById('recebimento-id').value = id;
   document.getElementById('recebimento-nome').value = nome;
+  document.getElementById('recebimento-qtd-rq').value = qtdRq || '';
+  // Reset incidente field
+  document.getElementById('recebimento-incidente-row').style.display = 'none';
+  document.getElementById('recebimento-incidente').value = '';
+  document.getElementById('recebimento-incidente').required = false;
   document.getElementById('recebimento-qtd').focus();
+}
+
+// Mostra/oculta campo de incidente baseado na divergência de quantidade
+function verificarDivergenciaRecebimento() {
+  const qtdRec = Number(document.getElementById('recebimento-qtd').value);
+  const qtdRq  = Number(document.getElementById('recebimento-qtd-rq').value);
+  const row    = document.getElementById('recebimento-incidente-row');
+  const campo  = document.getElementById('recebimento-incidente');
+  if (qtdRq > 0 && qtdRec >= 0 && qtdRec < qtdRq) {
+    row.style.display = 'flex';
+    campo.required = true;
+  } else {
+    row.style.display = 'none';
+    campo.required = false;
+    campo.value = '';
+  }
 }
 
 // Submissão do recebimento (chama Apps Script confirmarRecebimento)
@@ -959,11 +1133,12 @@ function submitRecebimento(event) {
     data: document.getElementById('recebimento-data').value,
     id: document.getElementById('recebimento-id').value,
     nome: document.getElementById('recebimento-nome').value,
-    qtdRecebida: document.getElementById('recebimento-qtd').value
+    qtdRecebida: document.getElementById('recebimento-qtd').value,
+    incidente: document.getElementById('recebimento-incidente').value || ''
   };
   google.script.run
-    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao confirmar recebimento: ' + (err?.message || err)); })
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Recebimento confirmado com sucesso.', 'success'); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); showNotification('Erro ao confirmar recebimento: ' + (err?.message || err), 'error'); })
     .confirmarRecebimento(dados);
 }
 
@@ -1018,7 +1193,7 @@ function renderAppData(data) {
   console.log('===== RECEBIDO DO BACKEND =====', data);
 
   if (!data || typeof data !== 'object') {
-    alert("ERRO: Backend retornou nulo ou não-objeto!");
+    showNotification('ERRO: Backend retornou resposta inválida. Recarregue a página.', 'error');
     return;
   }
 
@@ -1201,19 +1376,53 @@ function openIncidenteModal(data,id,nome) {
   document.getElementById('incidente-nome').value = nome;
 }
 
+// Mostra/oculta campos de encomenda no modal de cadastro
+function toggleCadastroEncomenda(checkbox) {
+  const campos = document.getElementById('cadastro-encomenda-campos');
+  const qtdInput = document.getElementById('novo-qtd');
+  const prazoInput = document.getElementById('novo-prazo');
+  if (checkbox.checked) {
+    campos.style.display = 'block';
+    qtdInput.required = true;
+    prazoInput.required = true;
+  } else {
+    campos.style.display = 'none';
+    qtdInput.required = false;
+    prazoInput.required = false;
+    qtdInput.value = '';
+    prazoInput.value = '';
+  }
+}
+
 // --- Submits de todos os formulários/spa para backend
 function submitCadastroBrinde(event) {
   event.preventDefault();
+  const addQtd = document.getElementById('novo-add-qtd').checked;
   showLoading();
-  let dados = {
-    nome: document.getElementById('novo-nome').value,
-    minimo: document.getElementById('novo-min').value,
-    isNovo: true
-  };
-  google.script.run
-    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao cadastrar brinde: ' + (err?.message || err)); })
-    .registrarEncomenda(dados);
+  if (addQtd) {
+    // Cadastra item E cria encomenda inicial
+    let dados = {
+      nome: document.getElementById('novo-nome').value,
+      minimo: document.getElementById('novo-min').value,
+      qtd: document.getElementById('novo-qtd').value,
+      prazo: document.getElementById('novo-prazo').value,
+      isNovo: true
+    };
+    google.script.run
+      .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Brinde cadastrado e encomenda registrada com sucesso.', 'success'); atualizarApp(); })
+      .withFailureHandler(err=>{ hideLoading(); showNotification('Erro ao cadastrar brinde: ' + (err?.message || err), 'error'); })
+      .registrarEncomenda(dados);
+  } else {
+    // Cadastra item apenas (sem movimento)
+    let dados = {
+      nome: document.getElementById('novo-nome').value,
+      minimo: document.getElementById('novo-min').value
+    };
+    google.script.run
+      .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Brinde cadastrado com sucesso.', 'success'); atualizarApp(); })
+      .withFailureHandler(err=>{ hideLoading(); showNotification('Erro ao cadastrar brinde: ' + (err?.message || err), 'error'); })
+      .cadastrarBrinde(dados);
+  }
 }
 function submitEncomenda(event) {
   event.preventDefault();
@@ -1228,8 +1437,8 @@ function submitEncomenda(event) {
     prazo: document.getElementById('encomenda-prazo').value
   };
   google.script.run
-    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar encomenda: ' + (err?.message || err)); })
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Encomenda registrada com sucesso.', 'success'); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); showNotification('Erro ao registrar encomenda: ' + (err?.message || err), 'error'); })
     .registrarEncomenda(dados);
 }
 function submitTransferencia(event) {
@@ -1245,8 +1454,8 @@ function submitTransferencia(event) {
     prazo: document.getElementById('transf-prazo').value
   };
   google.script.run
-    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao registrar transferência: ' + (err?.message || err)); })
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Transferência registrada com sucesso.', 'success'); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); showNotification('Erro ao registrar transferência: ' + (err?.message || err), 'error'); })
     .registrarTransferencia(dados);
 }
 //function submitRegularizacao(event) {
@@ -1294,8 +1503,8 @@ function submitIncidente(event) {
     incidente: document.getElementById('incidente-desc').value
   };
   google.script.run
-    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); atualizarApp(); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao confirmar recebimento: ' + (err?.message || err)); })
+    .withSuccessHandler(resp=>{ hideLoading(); closeAllModals(); showNotification(resp?.mensagem || 'Incidente registrado com sucesso.', 'success'); atualizarApp(); })
+    .withFailureHandler(err=>{ hideLoading(); showNotification('Erro ao registrar incidente: ' + (err?.message || err), 'error'); })
     .confirmarRecebimento(dados);
 }
 
@@ -1350,14 +1559,14 @@ function submitSaida(event) {
   let qtd = Number(document.getElementById('saida-qtd').value);
   let retirante = document.getElementById('saida-retirante').value.trim();
 
-  if (!brindeId) { alert('Selecione um brinde.'); return; }
-  if (!retirante) { alert('Informe o nome do retirante.'); return; }
+  if (!brindeId) { showNotification('Selecione um brinde.', 'warning'); return; }
+  if (!retirante) { showNotification('Informe o nome do retirante.', 'warning'); return; }
 
   // Validate against local stock data
   if (_appdata && _appdata.dashboard) {
     let item = _appdata.dashboard.find(d => String(d.id) === String(brindeId));
     if (item && qtd > item.saldo_nucleo) {
-      alert(`Quantidade solicitada (${qtd}) excede o estoque disponível (${item.saldo_nucleo}).`);
+      showNotification(`Quantidade solicitada (${qtd}) excede o estoque disponível (${item.saldo_nucleo}).`, 'warning');
       return;
     }
   }
@@ -1373,10 +1582,10 @@ function submitSaida(event) {
     .withSuccessHandler(resp => {
       hideLoading();
       closeAllModals();
-      alert(resp?.mensagem || 'Saída registrada com sucesso.');
+      showNotification(resp?.mensagem || 'Saída registrada com sucesso.', 'success');
       atualizarApp();
     })
-    .withFailureHandler(err => { hideLoading(); alert('Erro ao registrar saída: ' + (err?.message || err)); })
+    .withFailureHandler(err => { hideLoading(); showNotification('Erro ao registrar saída: ' + (err?.message || err), 'error'); })
     .registrarSaida(dados);
 }
 
@@ -1385,7 +1594,7 @@ function atualizarApp() {
   showLoading();
   google.script.run
     .withSuccessHandler(data=>{ hideLoading(); renderAppData(data); })
-    .withFailureHandler(err=>{ hideLoading(); alert('Erro ao carregar dados do servidor: ' + (err?.message || err)); })
+    .withFailureHandler(err=>{ hideLoading(); showNotification('Erro ao carregar dados do servidor: ' + (err?.message || err), 'error'); })
     .getAppData();
 }
 window.onload = () => {
