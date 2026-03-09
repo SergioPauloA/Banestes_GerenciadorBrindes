@@ -313,13 +313,15 @@ function registrarTransferencia(dados) {
 
   let cosupDisp = 0;
   if (espelho.getLastRow()>2) {
-    let vals = espelho.getRange(3,1,espelho.getLastRow()-2,2).getValues()
+    let vals = espelho.getRange(3,1,espelho.getLastRow()-2,3).getValues()
       .map(row => ({
         nome: String(row[0]).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
-        cosup: Number(row[1]) || 0
+        cosup: Number(row[1]) || 0,
+        id: String(row[2] || '').trim()
       }));
     let nomeCosup = String(dados.nome).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    let found = vals.find(r=>r.nome==nomeCosup);
+    let found = vals.find(r => r.id && r.id === String(dados.id).trim());
+    if (!found) found = vals.find(r => r.nome === nomeCosup);
     if (found) cosupDisp = Number(found.cosup);
     if (!found) throw new Error('Item não disponível na COSUP.');
     if (Number(dados.qtd) > cosupDisp) {
@@ -549,18 +551,6 @@ function regularizarManual(dados) {
     }
   }
 
-  movs.appendRow([
-    Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd HH:mm:ss"),
-    dados.id,
-    dados.nome,
-    'Ajuste Manual',
-    '',
-    dados.novoSaldo,
-    '',
-    'Em estoque',
-    emailUser,
-    dados.justificativa||''
-  ]);
   dispararEmail('Regularizacao', {
     id: dados.id,
     nome: dados.nome,
