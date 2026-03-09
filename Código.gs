@@ -355,7 +355,7 @@ function confirmarRecebimento(dados) {
   const vals = movs.getRange(2,1,movs.getLastRow()-1,10).getValues();
   let idx = -1;
   for(let i=0;i<vals.length;i++) {
-    if(vals[i][1]==dados.id && vals[i][0]==dados.data && vals[i][2]==dados.nome) { idx=i+2; break;}
+    if(String(vals[i][1])==String(dados.id) && formatDateSafe(vals[i][0])==dados.data && vals[i][2]==dados.nome) { idx=i+2; break;}
   }
   if(idx<0) throw new Error('Registro de movimentação não localizado.');
 
@@ -378,6 +378,7 @@ function confirmarRecebimento(dados) {
   }
   else {
     statusReceb='Confirmado';
+    dispararEmail('Confirmado', {id:dados.id, nome:dados.nome, qtdRequisitada: qtdReq, qtdRecebida: qtdRec});
   }
   movs.getRange(idx,6).setValue(qtdRec);
   movs.getRange(idx,8).setValue(statusReceb);
@@ -649,6 +650,15 @@ function dispararEmail(tipo, dados) {
       //'asmoreira@banestes.com.br',
       'csdamasceno@banestes.com.br'
     ];
+  } else if(tipo === 'Confirmado') {
+    subject = `Recebimento Confirmado - Brinde ${dados.nome}`;
+    body = renderEmailConfirmado(dados);
+    emails = [
+      //'spandrade@banestes.com.br',
+      //'gadian@banestes.com.br',
+      //'asmoreira@banestes.com.br',
+      'csdamasceno@banestes.com.br'
+    ];
   } else if(tipo === 'Regularizacao') {
     subject = `Formalização de Ajuste Manual - Brinde ${dados.nome}`;
     body = renderEmailRegularizacao(dados);
@@ -753,7 +763,27 @@ function renderEmailTransferencia(dados) {
   return _emailWrapper('#003366', '#ffffff', 'Transferência de Estoque', 'Gerenciador de Brindes — Núcleo Asset', body);
 }
 
-/** 3. SAÍDA DE ITEM (MOVIMENTAÇÃO INTERNA) */
+/** 3. RECEBIMENTO CONFIRMADO */
+function renderEmailConfirmado(dados) {
+  var rows =
+    _emailRow('Brinde', dados.nome + (dados.id ? ' (ID: ' + dados.id + ')' : '')) +
+    _emailRow('Qtd. Solicitada', dados.qtdRequisitada) +
+    _emailRow('Qtd. Recebida', dados.qtdRecebida) +
+    _emailRow('Responsável pela conferência', getActiveUserEmail(), true);
+
+  var body = `<p>Prezados,</p>
+<p>O recebimento do item abaixo foi <strong>confirmado com sucesso</strong> no Núcleo Asset. A quantidade recebida confere exatamente com a solicitada:</p>
+<table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #e4e8ee;border-radius:6px;overflow:hidden;">
+  ${rows}
+</table>
+<div style="background:#f0fff4;border-left:4px solid #276749;padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;font-size:13px;">
+  <strong>Ação tomada:</strong> O saldo foi incorporado ao estoque atual do Núcleo Asset.
+</div>`;
+
+  return _emailWrapper('#276749', '#ffffff', 'Recebimento Confirmado', 'Confirmação de Entrada — Núcleo Asset', body);
+}
+
+/** 4. SAÍDA DE ITEM (MOVIMENTAÇÃO INTERNA) */
 function renderEmailSaida(dados) {
   var rows =
     _emailRow('Brinde', dados.nome) +
