@@ -592,6 +592,80 @@
       user-select: none;
     }
     .checkbox-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
+
+    /* ====== CUSTOM CALENDAR PICKER ====== */
+    .calendario-container {
+      position: relative;
+      display: inline-block;
+    }
+    .calendario-popup {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      background: var(--white);
+      border-radius: var(--border-radius);
+      box-shadow: 0 4px 24px rgba(0,30,90,0.18);
+      border: 1px solid var(--gray-medium);
+      padding: 12px 14px 10px;
+      z-index: 500;
+      min-width: 242px;
+      animation: fadeIn 0.16s;
+    }
+    .calendario-popup.active { display: block; }
+    .cal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .cal-mes-ano {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      letter-spacing: 0.3px;
+    }
+    .cal-nav {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--primary);
+      font-size: 20px;
+      padding: 2px 8px;
+      border-radius: 5px;
+      transition: background 0.13s;
+      line-height: 1;
+    }
+    .cal-nav:hover { background: var(--gray-medium); }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      text-align: center;
+    }
+    .cal-dow {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--gray-dark);
+      padding: 3px 0;
+    }
+    .cal-day {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--primary-dark);
+      border-radius: 5px;
+      padding: 5px 2px;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+      border: none;
+      background: none;
+      width: 100%;
+    }
+    .cal-day:hover { background: var(--gray-medium); }
+    .cal-day.hoje { font-weight: 700; color: var(--primary); }
+    .cal-day.selecionado { background: var(--primary); color: var(--white); }
+    .cal-day.selecionado:hover { background: var(--primary-dark); }
+    .cal-day.outro-mes { color: var(--gray-dark); opacity: 0.45; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -763,13 +837,23 @@
 
     <section class="content-section" id="section-logs">
       <div class="aba-actions">
-        <input type="date" id="filtro-data-logs" style="display:none;" onchange="filtrarLogsPorData()">
-        <button class="btn primary" onclick="abrirCalendarioLogs()" title="Filtrar por data">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right:6px;flex-shrink:0;">
-            <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
-          </svg>
-          Filtrar por Data
-        </button>
+        <input type="hidden" id="filtro-data-logs">
+        <div class="calendario-container">
+          <button class="btn primary" onclick="abrirCalendarioLogs()" title="Filtrar por data">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right:6px;flex-shrink:0;">
+              <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+            </svg>
+            Filtrar por Data
+          </button>
+          <div class="calendario-popup" id="calendario-logs">
+            <div class="cal-header">
+              <button class="cal-nav" onclick="calNavLogs(-1)" type="button" aria-label="Mês anterior">&#8249;</button>
+              <span class="cal-mes-ano" id="cal-mes-ano-logs"></span>
+              <button class="cal-nav" onclick="calNavLogs(1)" type="button" aria-label="Próximo mês">&#8250;</button>
+            </div>
+            <div class="cal-grid" id="cal-grid-logs"></div>
+          </div>
+        </div>
         <button class="btn cancel" id="btn-limpar-logs" onclick="limparFiltroLogs()" style="display:none;">Limpar Filtro</button>
       </div>
       <div class="table-wrapper">
@@ -1418,8 +1502,60 @@ function renderLogsFiltrados(lista) {
 }
 
 function abrirCalendarioLogs() {
-  let el = document.getElementById('filtro-data-logs');
-  if(el.showPicker) { el.showPicker(); } else { el.click(); }
+  var popup = document.getElementById('calendario-logs');
+  if(popup.classList.contains('active')) {
+    popup.classList.remove('active');
+    return;
+  }
+  var filtro = document.getElementById('filtro-data-logs').value;
+  if(filtro) {
+    var parts = filtro.split('-');
+    _calLogsDate = new Date(parseInt(parts[0]), parseInt(parts[1])-1, 1);
+  } else {
+    _calLogsDate = new Date();
+    _calLogsDate.setDate(1);
+  }
+  renderCalendarioLogs();
+  popup.classList.add('active');
+}
+
+var _calLogsDate = new Date();
+
+function calNavLogs(delta) {
+  _calLogsDate.setMonth(_calLogsDate.getMonth() + delta);
+  renderCalendarioLogs();
+}
+
+function renderCalendarioLogs() {
+  var meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  var ano = _calLogsDate.getFullYear();
+  var mes = _calLogsDate.getMonth();
+  document.getElementById('cal-mes-ano-logs').textContent = meses[mes] + ' ' + ano;
+  var hoje = new Date();
+  var filtroAtual = document.getElementById('filtro-data-logs').value;
+  var primeiroDia = new Date(ano, mes, 1).getDay();
+  var diasNoMes = new Date(ano, mes+1, 0).getDate();
+  var dows = ['dom','seg','ter','qua','qui','sex','sáb'];
+  var html = dows.map(function(d){ return '<div class="cal-dow">'+d+'</div>'; }).join('');
+  for(var i=0; i<primeiroDia; i++) {
+    html += '<div class="cal-day outro-mes"></div>';
+  }
+  for(var d=1; d<=diasNoMes; d++) {
+    var mm = String(mes+1).padStart(2,'0');
+    var dd = String(d).padStart(2,'0');
+    var dateStr = ano+'-'+mm+'-'+dd;
+    var cls = 'cal-day';
+    if(hoje.getFullYear()===ano && hoje.getMonth()===mes && hoje.getDate()===d) cls += ' hoje';
+    if(filtroAtual === dateStr) cls += ' selecionado';
+    html += '<button class="'+cls+'" onclick="selecionarDiaLogs(\''+dateStr+'\')" type="button">'+d+'</button>';
+  }
+  document.getElementById('cal-grid-logs').innerHTML = html;
+}
+
+function selecionarDiaLogs(dateStr) {
+  document.getElementById('filtro-data-logs').value = dateStr;
+  document.getElementById('calendario-logs').classList.remove('active');
+  filtrarLogsPorData();
 }
 
 function filtrarLogsPorData() {
@@ -1437,6 +1573,7 @@ function filtrarLogsPorData() {
 
 function limparFiltroLogs() {
   document.getElementById('filtro-data-logs').value = '';
+  document.getElementById('calendario-logs').classList.remove('active');
   filtrarLogsPorData();
 }
 
@@ -1716,7 +1853,20 @@ function atualizarApp() {
 window.onload = () => {
   atualizarApp();
   document.addEventListener('keydown', function(e){
-    if(e.key==='Escape'){ closeAllModals(); }
+    if(e.key==='Escape'){
+      closeAllModals();
+      var cal = document.getElementById('calendario-logs');
+      if(cal) cal.classList.remove('active');
+    }
+  });
+  document.addEventListener('click', function(e){
+    var cal = document.getElementById('calendario-logs');
+    if(cal && cal.classList.contains('active')) {
+      var container = cal.closest('.calendario-container');
+      if(container && !container.contains(e.target)) {
+        cal.classList.remove('active');
+      }
+    }
   });
 };
 
