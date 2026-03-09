@@ -762,6 +762,16 @@
     </section>
 
     <section class="content-section" id="section-logs">
+      <div class="aba-actions">
+        <input type="date" id="filtro-data-logs" style="display:none;" onchange="filtrarLogsPorData()">
+        <button class="btn primary" onclick="abrirCalendarioLogs()" title="Filtrar por data">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right:6px;flex-shrink:0;">
+            <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5zM1 4v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4H1z"/>
+          </svg>
+          Filtrar por Data
+        </button>
+        <button class="btn cancel" id="btn-limpar-logs" onclick="limparFiltroLogs()" style="display:none;">Limpar Filtro</button>
+      </div>
       <div class="table-wrapper">
         <table id="table-logs">
           <thead>
@@ -1060,6 +1070,7 @@
   </main>
 <script>
 let _movimentosOriginais = []; // Garante variável global
+let _logsOriginais = []; // Logs originais para re-filtragem por data
 
 // ====== SISTEMA DE NOTIFICAÇÕES (substitui alert()) ======
 const _removingToasts = new WeakSet();
@@ -1377,14 +1388,24 @@ function renderCadastroTable(data) {
 }
 
 function renderLogsTable(data) {
+  _logsOriginais = data.logs && Array.isArray(data.logs) ? data.logs.slice() : [];
+  // Reset date filter when data is reloaded
+  let filtroEl = document.getElementById('filtro-data-logs');
+  if(filtroEl) filtroEl.value = '';
+  let btnLimpar = document.getElementById('btn-limpar-logs');
+  if(btnLimpar) btnLimpar.style.display = 'none';
+  renderLogsFiltrados(_logsOriginais);
+}
+
+function renderLogsFiltrados(lista) {
   let tbody = document.getElementById('tbody-logs');
-  tbody.innerHTML = '';
-  if(!data.logs || data.logs.length === 0) {
+  if(!lista || lista.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4"><em>Nenhum log registrado.</em></td></tr>`;
     return;
   }
-  data.logs.forEach(l=>{
-    tbody.innerHTML += `
+  let html = '';
+  lista.forEach(l=>{
+    html += `
       <tr>
         <td>${l.timestamp}</td>
         <td>${l.usuario}</td>
@@ -1393,6 +1414,30 @@ function renderLogsTable(data) {
       </tr>
     `;
   });
+  tbody.innerHTML = html;
+}
+
+function abrirCalendarioLogs() {
+  let el = document.getElementById('filtro-data-logs');
+  if(el.showPicker) { el.showPicker(); } else { el.click(); }
+}
+
+function filtrarLogsPorData() {
+  const filtro = document.getElementById('filtro-data-logs').value; // formato: yyyy-MM-dd
+  let lista = _logsOriginais || [];
+  let btnLimpar = document.getElementById('btn-limpar-logs');
+  if(filtro && filtro.trim() !== '') {
+    lista = lista.filter(l => (l.timestamp || '').startsWith(filtro));
+    if(btnLimpar) btnLimpar.style.display = '';
+  } else {
+    if(btnLimpar) btnLimpar.style.display = 'none';
+  }
+  renderLogsFiltrados(lista);
+}
+
+function limparFiltroLogs() {
+  document.getElementById('filtro-data-logs').value = '';
+  filtrarLogsPorData();
 }
 
 function openIncidenteModal(data,id,nome) {
