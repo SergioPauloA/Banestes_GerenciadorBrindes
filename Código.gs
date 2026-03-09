@@ -544,7 +544,7 @@ function regularizarManual(dados) {
   // Atualizar movimento específico para status "Em estoque"
   let movRows = movs.getRange(2,1,movs.getLastRow()-1,10).getValues();
   for(let i=0;i<movRows.length;i++){
-    if(movRows[i][1]==dados.id && movRows[i][2]==dados.nome && movRows[i][0]==dados.data){
+    if(String(movRows[i][1])==String(dados.id) && movRows[i][2]==dados.nome && formatDateSafe(movRows[i][0])==dados.data){
       movs.getRange(i+2,8).setValue('Em estoque'); // status
       movs.getRange(i+2,6).setValue(dados.novoSaldo); // qtd recebida
       break;
