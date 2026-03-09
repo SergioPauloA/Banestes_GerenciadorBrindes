@@ -130,7 +130,7 @@
       flex-direction: column;
       min-height: 0;
       min-width: 0;
-      height: 100vh;
+      height: 100%;
       overflow: hidden;
       position: relative;
       background: var(--gray-light);
@@ -141,11 +141,15 @@
       min-height: 0;
       width: 100%;
       overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
       padding: 24px 19px 18px 19px;
       background: var(--gray-light);
       display: none;
       animation: fadeIn 0.38s;
     }
+    .content-section::-webkit-scrollbar { display: none; }
     .content-section.active {
       display: block;
     }
@@ -204,7 +208,10 @@
       padding: 12px 13px;
       font-size: 13px;
       overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
+    .dashboard-compare::-webkit-scrollbar { display: none; }
     .dashboard-compare-tab {
       width: 100%;
       border-collapse: collapse;
@@ -259,11 +266,14 @@
       box-shadow: var(--shadow);
       border: var(--card-border);
       overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
       margin-bottom: 12px;
       position: relative;
       padding: 8px 0 2px 0;
       min-width: 0;
     }
+    .table-wrapper::-webkit-scrollbar { display: none; }
     table {
       border-collapse: collapse;
       min-width: 320px;
@@ -308,11 +318,14 @@
       min-width: min(360px, 95vw); max-width:96vw;
       max-height: 90vh;
       overflow-y: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
       padding: 13px 17px 13px 17px;
       display: flex; flex-direction: column; justify-content: center;
       margin: auto;
       animation: fadeIn 0.16s;
     }
+    .modal::-webkit-scrollbar { display: none; }
     @media (max-width: 470px) {
       .modal {
         min-width: 90vw;
@@ -636,7 +649,7 @@
               <th>Qtd Req.</th>
               <th>Qtd Rec.</th>
               <th>Status</th>
-              <th>Prazo</th>
+              <th>Prazo Máximo (em dias)</th>
               <th>Incidente</th>
               <th>Usuário</th>
               <th>Ação</th>
@@ -797,7 +810,7 @@
                 <input type="number" id="novo-qtd" min="1" />
               </div>
               <div class="form-group">
-                <label for="novo-prazo">Prazo Máximo (dias) <span style="color:var(--danger)">*</span></label>
+                <label for="novo-prazo">Prazo Máximo (em dias) <span style="color:var(--danger)">*</span></label>
                 <input type="number" id="novo-prazo" min="1" />
               </div>
             </div>
@@ -825,7 +838,7 @@
               <input type="number" id="encomenda-qtd" min="1" required />
             </div>
             <div class="form-group">
-              <label for="encomenda-prazo">Prazo Máximo</label>
+              <label for="encomenda-prazo">Prazo Máximo (em dias)</label>
               <input type="number" id="encomenda-prazo" min="1" required />
             </div>
           </div>
@@ -852,7 +865,7 @@
               <input type="number" id="transf-qtd" min="1" required />
             </div>
             <div class="form-group">
-              <label for="transf-prazo">Prazo</label>
+              <label for="transf-prazo">Prazo Máximo (em dias)</label>
               <input type="number" id="transf-prazo" min="1" required/>
             </div>
           </div>
